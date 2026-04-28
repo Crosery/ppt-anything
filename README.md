@@ -1,15 +1,36 @@
+<div align="center">
+
+<img src="assets/logo.jpg" alt="ppt-anything" width="320" />
+
 # ppt-anything
 
-![ppt-anything](assets/logo.webp)
+### 任何人都能用的 AI 故事 PPT 生成器
 
-> 任何人都能用的 AI 故事 PPT 生成器。
-> 给一个主题，吐回一套连贯、有人物、有审美、能直接讲的插画 PPT。
+<p>给一个主题，吐回一套连贯、有人物、有审美、能直接讲的插画 PPT。</p>
+
+<p>
+  <a href="#快速开始"><b>快速开始</b></a>
+  &nbsp;·&nbsp;
+  <a href="#库系统"><b>库系统</b></a>
+  &nbsp;·&nbsp;
+  <a href="#解决的痛点"><b>解决的痛点</b></a>
+  &nbsp;·&nbsp;
+  <a href="AGENT.md"><b>AGENT 总入口</b></a>
+</p>
+
+<sub>跨 AI CLI · Claude Code / Gemini CLI / Codex CLI / Cursor 通吃 · BYO 生图 key</sub>
+
+</div>
 
 ---
 
+<div align="center">
+
 ## 架构一览
 
-![ppt-anything architecture](assets/architecture.webp)
+<img src="assets/architecture.jpg" alt="ppt-anything architecture" width="100%" />
+
+</div>
 
 ---
 
@@ -37,13 +58,13 @@
 
 ## 核心特性
 
-- **三库可扩展**: characters / styles / providers，全部住在 `~/.anything-ppt/`
-- **Outline gate**: 任何生图前必须先把故事大纲拿给你过，杜绝烧钱试错
-- **Reference image 纪律**: 每张 slide 都用原始角色图 + 上一张 slide 双重 anchor，主角不漂
-- **Layout × Beat 方法论**: A-H 布局 + scene-ify 自定义场景，按情绪选版式不靠模板
-- **Content-first**: 视觉读取顺序强制 内容 > 人物 > 装饰，杜绝喧宾夺主
-- **轻量交付**: 默认 WebP 外链 HTML（~3KB 壳 + 几 MB 图），秒开
-- **零 emoji**: 所有产出物（PPT/插画/文档/UI label/commit message）禁用 emoji
+- **三库可扩展** — `characters` / `styles` / `providers`，全部住在 `~/.anything-ppt/`
+- **Outline gate** — 任何生图前必须先把故事大纲拿给你过，杜绝烧钱试错
+- **Reference image 纪律** — 每张 slide 都用原始角色图 + 上一张 slide 双重 anchor，主角不漂
+- **Layout × Beat 方法论** — A-H 布局 + scene-ify 自定义场景，按情绪选版式不靠模板
+- **Content-first** — 视觉读取顺序强制 内容 &gt; 人物 &gt; 装饰，杜绝喧宾夺主
+- **轻量交付** — 默认 WebP 外链 HTML（~3KB 壳 + 几 MB 图），秒开
+- **零 emoji** — 所有产出物（PPT/插画/文档/UI label/commit message）禁用 emoji
 
 ---
 
@@ -52,42 +73,42 @@
 ### 1. 克隆 + 安装
 
 ```bash
-git clone <repo-url> ~/work_file/ppt-anything
+git clone https://g.ktvsky.com/chengyaoyu/ppt-anything.git ~/work_file/ppt-anything
 cd ~/work_file/ppt-anything
 bash scripts/install.sh
 ```
 
 `install.sh` 做的事：
-- 把 `.claude/skills/ppt-anything/` 软链到 `~/.claude/skills/ppt-anything/`（Claude Code 用户）
+- `cp -R skill/` → `~/.claude/skills/ppt-anything/`（已存在则备份到 `.bak.<时间戳>/`）
 - 把 `defaults/` 拷到 `~/.anything-ppt/`（首次安装，已存在则跳过）
-- 检查 `cwebp` 是否安装（HTML 打包需要）
+- 检查 `cwebp` + Python 3.11+ tomllib
 
 ### 2. 配一个生图 provider
 
-`install.sh` 会自动把 `nanobanana.toml.example` 平铺成 `nanobanana.toml`，但 `api_key` 留空。
-你需要去填:
+`install.sh` 会自动把 `nanobanana.toml.example` 平铺成 `nanobanana.toml`，但 `[auth]` 三个字段全留空。
+你需要去填：
 
 ```bash
 vim ~/.anything-ppt/providers/nanobanana.toml
-# 把 api_key = "" 改成你从 https://nn.147ai.com 申请的真实 key
+# 把 api_key / base_url / docs_url 三项都填上你申请到的真实值
 ```
 
-**想加别的渠道** (gpt-image-2 / Replicate / 自建网关 / 任何 OpenAI-compatible 端点):
-- 自己加: 拷 `docs/provider-examples/gpt-image-2.toml.example` 到 `~/.anything-ppt/providers/`，按 schema 填
-- 让 AI 加: 在 AI CLI 里说"帮我加 <provider 名>"，准备好 api_key + base_url + 文档链接 + 模型清单
+**想加别的渠道**（gpt-image-2 / Replicate / 自建网关 / 任何 OpenAI-compatible）：
+- 自己加：拷 `docs/provider-examples/gpt-image-2.toml.example` 到 `~/.anything-ppt/providers/`，按 schema 填
+- 让 AI 加：在 AI CLI 里说"帮我加 &lt;provider&gt;"，准备好 api_key + base_url + 文档链接 + 模型清单
 
-AI 启动 skill 时会扫 `~/.anything-ppt/providers/`，对没填 key 的 provider 给警告并问你怎么处理。
+AI 启动 skill 时会扫 `~/.anything-ppt/providers/`，对没填齐字段的 provider 给警告并问你怎么处理。
 **AI 永远不替你生成或保管 api_key**——这是铁律。
 
 ### 3. 在你的 AI CLI 里调用
 
-**Claude Code**:
+**Claude Code**：
 
 ```
 /ppt-anything 做一套 PPT 讲 strong-rl 怎么从 0 到峡谷段位
 ```
 
-**其他 CLI**: 见 [`AGENT.md`](AGENT.md)，里面写了 Claude / Gemini CLI / Codex CLI / Cursor 怎么各自接入这个项目。
+**其他 CLI**：见 [`AGENT.md`](AGENT.md)，里面写了 Claude / Gemini CLI / Codex CLI / Cursor 怎么各自接入这个项目。
 
 ---
 
@@ -99,12 +120,12 @@ AI 启动 skill 时会扫 `~/.anything-ppt/providers/`，对没填 key 的 provi
 ~/.anything-ppt/
 ├── characters/    人物库  (默认: 橙橙 chengcheng + 蓝蓝 lanlan, 「搭子」AI OC 双核 mascot)
 ├── styles/        风格模板库  (默认: anime-chibi-default 萌系日漫水彩)
-├── providers/     生图 API 库  (默认只装 nanobanana 模板, api_key 留空待填; 其他渠道靠扩展)
+├── providers/     生图 API 库  (默认只装 nanobanana 模板, 字段全空待填; 其他渠道靠扩展)
 └── demo/          每次生成的成品归档 (按日期 + 主题命名)
 ```
 
-**默认值**: 启动 skill 时会告诉你"这次默认用 [橙橙 + 蓝蓝 搭子双核] 角色 + [萌系日漫] 风格 + [nanobanana] provider，要换吗？"。
-**自动扩展**: 你说"用某某动漫角色"或"用某某风格"，AI 没有的话会去网上搜，下载、写 profile、塞进库，下次直接用。
+**默认值**：启动 skill 时会告诉你"这次默认用 [橙橙 + 蓝蓝 搭子双核] 角色 + [萌系日漫] 风格 + [nanobanana] provider，要换吗？"。
+**自动扩展**：你说"用某某动漫角色"或"用某某风格"，AI 没有的话会去网上搜，下载、写 profile、塞进库，下次直接用。
 
 详见 [`docs/library-management.md`](docs/library-management.md)。
 
@@ -117,7 +138,7 @@ ppt-anything/
 ├── README.md                    给人看
 ├── AGENT.md                     给 AI CLI 看的总入口
 ├── CLAUDE.md / GEMINI.md / ...  桩文件，指向 AGENT.md
-├── skill/                       skill 本体 (SKILL.md / style_guide / prompt_template / tools/...)
+├── skill/                       skill 本体 (SKILL.md + tools/)
 │                                被 install.sh cp -R 到 ~/.claude/skills/ppt-anything/
 ├── defaults/                    首次安装时拷到 ~/.anything-ppt/ 的默认库
 │   ├── characters/chengcheng/   橙橙 (搭子双核之「冲」)
@@ -126,7 +147,7 @@ ppt-anything/
 │   └── providers/nanobanana.toml.example   出厂只装它一个, 其他渠道在 docs/provider-examples/ 留 schema
 ├── docs/                        进阶文档
 ├── scripts/install.sh
-└── assets/                      项目本身的 logo / 架构图
+└── assets/                      项目自身的 logo / 架构图
 ```
 
 ---
@@ -143,5 +164,9 @@ ppt-anything/
 
 ## 致谢与出处
 
-源自 [`~/.claude/skills/ppt-anything`](https://github.com/Crosery)（@Crosery 私人 skill），
+源自 [`~/.claude/skills/ppt-anything`](https://g.ktvsky.com/chengyaoyu/ppt-anything)（@Crosery 私人 skill），
 解耦 + 抽象 + 库化后开放给所有人。
+
+<div align="center">
+<sub>Made with watercolor anime by 橙橙 + 蓝蓝 搭子双核</sub>
+</div>
