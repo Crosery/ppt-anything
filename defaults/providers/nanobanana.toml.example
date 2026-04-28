@@ -1,0 +1,54 @@
+# Nano Banana / 147ai (Gemini 桥接)
+#
+# 这是 ppt-anything 出厂自带的唯一默认 provider 模板。
+# 拿到 api_key 之前: skill 启动时会检测 api_key 仍是占位符, 提示你去填或让 AI 帮你加。
+#
+# 怎么用:
+#   1) cp nanobanana.toml.example nanobanana.toml
+#   2) 把 api_key 改成你自己的真实 key (从 https://nn.147ai.com 申请)
+#   3) 重新触发 ppt-anything skill, 它会再扫一次, 看到真实 key 就放行
+#
+# 不想自己填? 在 AI CLI 里说 "帮我加 nanobanana 的 key", 它会按规范帮你写,
+# 但**不会替你生成或保管 key 本身** - 你必须自己去 147ai 申请并粘给它。
+
+[provider]
+name = "nanobanana"
+display_name = "Nano Banana (147ai Gemini bridge)"
+region = "cn"
+default = true                          # ppt-anything 出厂默认 provider, 不要随便改
+
+[auth]
+# 全部留空。skill 启动检测到 api_key / base_url 任一为 "" / "<...>" / "PLACEHOLDER" 都判为未配置。
+# 你必须自己填三项: api_key (你申请到的) / base_url (官方网关地址) / docs_url (官方 API 文档地址)
+api_key = ""
+base_url = ""
+docs_url = ""
+
+[models]
+default = "gemini-3-pro-image-preview"
+choices = [
+    "gemini-3-pro-image-preview",       # pro, 默认 4K, 失败自动 fallback 到 2K
+    "gemini-2.5-flash-image-preview",   # 便宜快, 适合草稿
+    "gemini-3.1-flash-image-preview",   # 最新 flash
+]
+
+[defaults]
+size = "4K"                             # 仅 pro 支持
+aspect_ratio = "16:9"
+
+[capabilities]
+image_to_image = true                   # 支持 --ref reference image
+max_ref_size_mb = 10                    # base64 内联上限
+multi_ref = true
+billing_on_failure = true               # 重要: 失败也扣钱, 不要盲重试
+
+[how_to_use]
+# AI 怎么调用这个 provider
+# 当前依赖的 generate-image skill 实现见 ~/.claude/skills/generate-image/generate.py
+invoke = "generate.py --provider nanobanana -m {model} --size {size} -r {aspect_ratio} --ref {ref} '{prompt}'"
+notes = """
+- 默认 size=4K, 与 2K 同价, 失败会自动 fallback 到 2K (扣两次费)
+- 想完全跳过 4K 尝试: 显式 --size 2K
+- ref 图必须 < 10 MB
+- 失败也扣费, 禁止盲重试
+"""

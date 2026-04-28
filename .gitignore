@@ -1,0 +1,26 @@
+# 不追踪用户全局库与本地敏感配置
+~/.anything-ppt/
+*.env
+.env
+.env.local
+
+# 不追踪生图临时输出
+*.tmp.png
+*.tmp.webp
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# 不追踪 demo 输出（demo 应该在 ~/.anything-ppt/demo 下）
+/demo/
