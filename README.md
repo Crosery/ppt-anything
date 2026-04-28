@@ -1,8 +1,6 @@
-<p align="center">
-  <img src="assets/logo.webp" alt="ppt-anything" width="320">
-</p>
-
 # ppt-anything
+
+![ppt-anything](assets/logo.webp)
 
 > 任何人都能用的 AI 故事 PPT 生成器。
 > 给一个主题，吐回一套连贯、有人物、有审美、能直接讲的插画 PPT。
@@ -11,9 +9,7 @@
 
 ## 架构一览
 
-<p align="center">
-  <img src="assets/architecture.webp" alt="ppt-anything architecture" width="100%">
-</p>
+![ppt-anything architecture](assets/architecture.webp)
 
 ---
 
