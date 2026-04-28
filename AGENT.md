@@ -157,6 +157,38 @@ bash scripts/install.sh
 
 ---
 
+## Git 工作流（项目级 override 全局 CLAUDE.md）
+
+全局 CLAUDE.md 默认要求"合入 main 必须走 MR"。本项目作为个人维护的开源 skill 仓库，规则按改动重量分级：
+
+| 改动类型 | 流程 |
+|---|---|
+| **小改动**（typo / 文档措辞 / README 渲染修复 / 单文件 < 30 行 diff） | 直接在 main 上 commit + `git push origin main`，不走分支不走 MR |
+| **中等改动**（新增功能 / 改库结构 / 多文件协调） | 走 `feat/<slug>` 或 `fix/<slug>` 分支 + MR + 自审 |
+| **大改动**（架构重写 / 删默认资产 / 不可逆操作） | 必须 MR + commit message 含 rationale |
+
+### Commit 格式（仍按全局规范）
+
+```
+[<type>][提交人] 具体内容：位置 + 更改
+```
+
+type 9 类：`feat / fix / refactor / docs / test / chore / release / dev` —— 详见全局 CLAUDE.md。
+
+### Hook 注意
+
+`~/.claude/bin/hook-commit-discipline.py` 是全局保险（任何项目里 main 上动代码都会拦）。本项目允许小改动直接动 main，所以遇到 hook 拦截时按它自己提示的方法临时关：
+
+```bash
+chmod -x ~/.claude/bin/hook-commit-discipline.py
+# ...小改动 commit + push...
+chmod +x ~/.claude/bin/hook-commit-discipline.py
+```
+
+中等 / 大改动**不要**关 hook，按 main → 切分支 → MR 流程走。
+
+---
+
 ## 当前关注 / 项目状态
 
 正在从 Crosery 私人 skill 解耦走向通用版。M1 目标：让任何 Claude Code 用户能 git clone 后跑通。M2 目标：独立 CLI（不依赖 Claude Code）。
