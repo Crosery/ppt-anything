@@ -120,7 +120,19 @@ If the user prefers Path 1 (Google official, fill the key themselves), the agent
 
    **Topic-character fit judgment:** if the user's topic obviously needs a kind of character the library can't serve (e.g. user wants a 写实校园怀旧, library only has abstract OC water droplets), proactively flag that mismatch in the briefing — offer two paths: (a) accept abstract symbolic handling with the existing characters, (b) add a new character now (Branch B/C of step 2). Don't proceed with a topic that can't work and discover it 3 rounds later.
 
-2. **Clarify what's still missing.** After the library snapshot you should know what defaults to apply. Ask the user only for the things that aren't decidable from the library: register (serious/playful) if ambiguous from topic, slide count if user didn't say, and any new-character/new-style needs that the snapshot revealed.
+2. **Clarify what's still missing — including provider choice and generation mode.** After the library snapshot you know what's available, BUT YOU STILL ASK USER A FEW DECISIONS BEFORE TOUCHING `generate-image.py`:
+
+   - **Topic-side**: register (serious/playful) if ambiguous from topic, slide count if user didn't say, any new-character/new-style needs that the snapshot revealed.
+   - **Provider choice — MANDATORY when more than one provider toml exists.** Do NOT silently default. If `ls ~/.ppt-anything/providers/` shows multiple `.toml` files (e.g. `google.toml` + `nanobanana.toml` + bridges), explicitly ask: `"providers/ 里有 [list]，这次用哪个？"`. Only auto-select when there's exactly ONE configured provider on disk. (Reason: the user pays per call, may want different model/quality, may have one provider keyed and one not — choosing for them costs them money on the wrong rail.)
+   - **Generation mode — MANDATORY ASK before first image.** Two options:
+     - **Sequential (recommended, default if user is silent)**: one slide at a time, wait for each to return. Safe across all providers; respects rate limits.
+     - **Batch (parallel)**: multiple slides at once. Faster but RISKS rate-limiting / temporary bans on third-party bridges (and even some official tiers). If user picks batch, **WARN** explicitly: "并发会撞到 provider 风控，可能限频或临时封号; 失败也扣费。确认要批量吗？" Wait for re-confirmation. Even after re-confirm, cap at 3 parallel calls.
+
+   These two questions go in the SAME confirmation message so the user only stops once. Example:
+
+   > "默认 [provider X] + [N 张] + [基调]。还要你拍：
+   >  · provider 选 google / nanobanana / [其他]?
+   >  · 生成模式: 顺序 (推荐, 慢但稳) / 批量 (快但有限频风险)?"
 3. **Resolve characters — and ALWAYS anchor with a real reference image.** Text description alone is never enough; the model will drift toward its training-data bias (e.g. a 2012 version of a character that's been redesigned in 2024). Every character used in the deck must end this step with BOTH (a) a profile file `~/.ppt-anything/characters/<slug>/<slug>.md` AND (b) a local reference image `~/.ppt-anything/characters/<slug>/<slug>.<ext>` that Claude has Read (vision input) at least once this session.
 
    Three branches:
@@ -142,7 +154,9 @@ If the user prefers Path 1 (Google official, fill the key themselves), the agent
    Use `~/.ppt-anything/styles/<active-style>/outline_template.md` as a thinking scaffold — articulate your design intent in your own words, not by filling blanks.
 
 5. **Gate: share the outline, wait for approval.** Write out your design intent for every slide (using `~/.ppt-anything/styles/<active-style>/outline_template.md` as a thinking scaffold) and show it to the user. Include enough so the user can tell: is each slide purposeful? Do layouts and poses vary? Does any slide feel over/under-filled? Do NOT call `generate.py` yet. Wait for explicit approval.
-6. **Generate slides STRICTLY IN SEQUENCE.** For each slide: fill every `<<SLOT>>` in `~/.ppt-anything/styles/<active-style>/prompt_template.md`, invoke `generate.py`, WAIT for it to return a file path, then start the next.
+6. **Generate slides — sequential by default, batch only on explicit user opt-in.** For each slide: fill every `<<SLOT>>` in `~/.ppt-anything/styles/<active-style>/prompt_template.md`, invoke `generate.py`, WAIT for it to return a file path, then start the next.
+
+   **Default = sequential**. If the user picked "batch" in step 2 after warning + re-confirm, you MAY parallelize but cap at 3 concurrent calls and tell the user "如果撞到限频我会立即降回顺序"; on first 429/throttle, drop back to sequential for the rest of the deck.
 
    **`--ref` discipline (load-bearing for character fidelity):**
    - EVERY slide passes the character reference image(s) `~/.ppt-anything/characters/<slug>/<slug>.<ext>` as `--ref`. These are the ground truth; they anchor signature details across the whole deck.
@@ -190,7 +204,7 @@ If the user prefers Path 1 (Google official, fill the key themselves), the agent
 - [ ] **T4**: EVERY `generate.py` call passes the character reference image(s) as `--ref`; slides 2+ ALSO pass the previous slide as `--ref`. No slide relies on daisy-chained previous slides alone.
 - [ ] **T5**: Each slide uses a DIFFERENT layout from the previous slide (no 5× identical ribbon-banner template)
 - [ ] **T6**: Each slide uses a DIFFERENT character pose from the previous slide
-- [ ] **T7**: Image generation was STRICTLY SEQUENTIAL — zero parallel / background / subagent-fanout calls to `generate.py`
+- [ ] **T7**: Image generation respected the user's chosen mode — sequential by default; batch only after explicit user opt-in (with concurrency warning) and capped at 3 parallel; auto-fall-back to sequential on first 429/throttle.
 - [ ] **T8**: Every element on every slide earns its place — no filler character / decoration / sentence added to meet a quota. If asked "why is this here?" you can answer with a story reason, not a rule reason.
 - [ ] **T9**: Design intent was articulated per slide and shown to the user BEFORE any generation — covering beat, layout choice, pose choice, copy, decorations (with reasoning)
 - [ ] **T10 (content-first sanity check)**: On each finished slide, the viewer's eye lands on the title/copy first, then the character, then the decorations. If a character or decoration is stealing the scene, shrink or reposition — characters serve the content, not the other way around.
@@ -224,7 +238,8 @@ See `~/.ppt-anything/characters/README.md` for profile schema, the mandatory ref
 |---|---|---|
 | Generating images before showing outline | Burns money on wrong direction | Gate T3 is mandatory |
 | Forgetting `--ref` from slide 2 onward | Characters drift between slides | Check Gate T4 before each call |
-| Parallel / background `generate.py` calls | API risk-control throttles or bans | Strictly sequential, wait for each return (T7) |
+| Auto-running parallel `generate.py` calls without asking the user first | API risk-control throttles or bans + spends user money on the wrong rail | Default sequential; batch only after asking + warning + re-confirm; cap at 3 concurrent; fall back to sequential on first 429 (T7) |
+| Auto-picking a provider when multiple toml exist | User pays for the wrong rail / wrong quality / wrong key | If `ls ~/.ppt-anything/providers/*.toml` shows >1 entry, ASK the user which to use — do not silently default |
 | Same layout on every slide | Monotonous deck, reader disengages | Vary layouts per `~/.ppt-anything/styles/<active-style>/style_guide.md` § Layout variation (T5) |
 | Same character pose every slide (e.g. "holding notebook") | Dead deck, no motion | Pick fresh pose from vocabulary per slide (T6) |
 | Padding a slide with filler (extra characters / decorations / copy) to "look rich" | Dilutes the main message; filler ≠ richness | Every element earns its place or gets dropped (T8) |
