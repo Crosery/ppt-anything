@@ -142,6 +142,20 @@ If the user prefers Path 1 (Google official, fill the key themselves), the agent
 
    - **Topic-side**: register (serious/playful) if ambiguous from topic, slide count if user didn't say, any new-character/new-style needs that the snapshot revealed.
    - **Provider choice — MANDATORY when more than one provider toml exists.** Do NOT silently default. If `ls ~/.ppt-anything/providers/` shows multiple `.toml` files (e.g. `google.toml` + `nanobanana.toml` + bridges), explicitly ask: `"providers/ 里有 [list]，这次用哪个？"`. Only auto-select when there's exactly ONE configured provider on disk. (Reason: the user pays per call, may want different model/quality, may have one provider keyed and one not — choosing for them costs them money on the wrong rail.)
+
+   - **Model + 分辨率默认 — 永远 provider 顶配, 不许"安全的中间值".** 用户为某个 provider 付了钱, 默认就要用满它能给的最强配置; "2K 对水彩够用" / "默认中间值更稳" 都是把 AI 偏好包装成默认, 实际是吃用户预算。各 provider 顶配 (查 `generate-image.py --help` 确认):
+
+     | Provider | 默认 model | 默认 `--size` | 备注 |
+     |---|---|---|---|
+     | `google` / `nanobanana` (Gemini-shape) | `gemini-3-pro-image-preview` | `4K` | `gemini-2.5-flash-image` 只用于注册校验或用户主动说"省钱/草稿" |
+     | `seedream` | `doubao-seedream-5-0-260128` (单模型) | `3k` | `2k` 是降配 |
+     | `xais` | **必须先跑** `generate-image.py --provider xais --list-models` 看动态 catalog, 取最新最强 | `--size` 对 xais 无效, 跳过 | xais 模型池会变, 不查就用旧默认 = 用户付了升级钱没拿到 |
+
+     告诉用户你的选择 + 留降配出口:
+
+     > "默认 [provider] + [模型] + [分辨率] (provider 范围内最强配置)。想省钱可以降到 [备选模型] 或 [次级分辨率], 你说。"
+
+     **降配只在用户明示"省钱/草稿/不敏感"时才触发**, AI 不许替用户拿这个决定。
    - **Generation mode — MANDATORY ASK, no silent default.** This is a **质量 vs 速度** tradeoff (not just 串/并行的技术选择); both axes must be on the table for the user:
      - **高质量模式 (顺序生成 + AI 中途看图复盘)**: 一张生成完, AI 立刻 `Read` 那张图, 验证角色 IP 没崩 / style 一致 / 中文字串没乱码, 再开下一张。慢, 但每张都过审, 出问题早期就抓到。**适合**: 第一次跑某个 style / 用户对 IP 还原度高敏感 / 重要交付。
      - **快速模式 (批量并发 + AI 不中途看图)**: 多张并发出货, AI 不审中间结果, 直接拿全部回包打包成 deck。**速度起飞但放弃中间复盘**, 如果某张崩了要等到末尾看 deck 才发现, 重生成的成本也是用户出。**适合**: style 和 character 已经在之前的 deck 里走通过 / 用户赶时间 / 草稿迭代版 / 用户明说"先批一版看看效果"。
@@ -186,7 +200,7 @@ If the user prefers Path 1 (Google official, fill the key themselves), the agent
    - From slide 2 onward, ALSO pass the previous slide's PNG as `--ref` for style continuity (watercolor tone, decoration style).
    - Seedream supports multiple `--ref` flags — pass all relevant ones. Typical slide 2+ invocation: `--ref ~/.ppt-anything/characters/chengcheng/chengcheng.png --ref ~/.ppt-anything/characters/lanlan/lanlan.png --ref <previous_slide>.png`.
    - Daisy-chaining ONLY the previous slide (without re-anchoring to the original character image) accumulates drift across 5–6 slides. Always re-anchor every slide.
-   - Resolution: use `--size 3k` when Chinese-text-heavy slides need crisp glyph rendering; default `-r 16:9` (2k) is fine otherwise.
+   - Resolution: 用 Step 2 拍的 provider 顶配 (Gemini-shape pro = `--size 4K`, seedream = `--size 3k`, xais 无 size 概念)。**不许**生图阶段私自降到 2K 理由是"水彩够用 / 省时"——降配只在 Step 2 用户明示触发。Chinese 文本多的 deck 顶配本就是必要项, 不是 nice-to-have。
 
    **⚠️ Parallelization is gated on user-picked mode.** 高质量模式下永远不并发, 一张接一张; 快速模式下按用户拍的并发数并发 (默认 3, 第三方 bridge ≤3 硬上限)。Xais / Seedream / 第三方 bridge 都做 RPM 风控, 越界扣费且可能临时封号 — 所以**并发数永远不超过用户在 Step 2 明确确认过的值**, 不许 AI 自己加码。
 7. **Package & deliver.**
@@ -228,6 +242,7 @@ If the user prefers Path 1 (Google official, fill the key themselves), the agent
 - [ ] **T5**: Each slide uses a DIFFERENT layout from the previous slide (no 5× identical ribbon-banner template)
 - [ ] **T6**: Each slide uses a DIFFERENT character pose from the previous slide
 - [ ] **T7**: 生成模式被**显式问过** — 高质量(顺序+每张看图复盘) vs 快速(批量+不看图直接出货)。没有静默默认。并发上限默认 3, 用户确认 provider RPM 后可放宽到 5-8, 第三方 bridge 永远 ≤3。第一次 429 自动降回顺序。高质量模式下每张生成完 AI 都 `Read` 过该图; 快速模式下不中途 Read。
+- [ ] **T11**: provider 选定后, model + 分辨率都用了 provider 范围内的**顶配** — Gemini-shape (google/nanobanana) = `gemini-3-pro-image-preview` + `--size 4K`; seedream = `--size 3k`; xais 跑过 `--list-models` 后取最新最强。没有静默退到 `2K` / `gemini-2.5-flash-image` / xais 旧默认。降配只在用户明示"省钱/草稿/不敏感"时触发。
 - [ ] **T8**: Every element on every slide earns its place — no filler character / decoration / sentence added to meet a quota. If asked "why is this here?" you can answer with a story reason, not a rule reason.
 - [ ] **T9**: Design intent was articulated per slide and shown to the user BEFORE any generation — covering beat, layout choice, pose choice, copy, decorations (with reasoning)
 - [ ] **T10 (content-first sanity check)**: On each finished slide, the viewer's eye lands on the title/copy first, then the character, then the decorations. If a character or decoration is stealing the scene, shrink or reposition — characters serve the content, not the other way around.
@@ -264,6 +279,7 @@ See `~/.ppt-anything/characters/README.md` for profile schema, the mandatory ref
 | Auto-running parallel `generate.py` calls without asking the user first | API risk-control throttles or bans + spends user money on the wrong rail | Default sequential; batch only after asking + warning + re-confirm; cap at 3 concurrent; fall back to sequential on first 429 (T7) |
 | 没问用户模式 (高质量/快速) 直接开始生成 — 即使是"安全的"顺序也违规 | 把 钱 + 时间 的 tradeoff 从用户手里拿走。用户想快你给慢, 用户想稳你给快批崩了。"顺序很安全所以不用问"是最危险的借口, 因为它把 AI 的偏好包装成默认 | T7 + Step 2 *Generation mode*: 模式问询是 slide 1 之前的硬门, 必须问。"我 default 顺序" / "用户没说我猜稳" / "outline 已经过了" 全部不算。问的时候必须把"高质量=顺序+我看图"和"快速=批量+不看图"都摆上, 让用户拍 |
 | 用户说一个 style 方向 (科技风/复古风/商务风/赛博朋克), 库里没有该 pack, AI 回 "我对你的话有 2/3 种理解, 是哪个?" | 把推断成本甩回给用户 — 用户已经说清楚他要那个 style 了。库 miss = 该 BUILD 新 pack 的信号, 不是该让用户解释一遍他刚说过的话。"我有 N 种理解" 框架在装认真, 实际是把决策推给用户 | Step 1 *Style-library miss judgment*: 直接说 "库里没这个 style, 我去建新 pack — 在这个 style 内部你拍方向 A/B/C?" 框架是 "我在建, 给我方向", 不是 "我搞不懂你说啥"。建 pack (manifest+style_guide+prompt_template+outline_template) 是正常分支不是异常 |
+| 注册 / 选定 provider 后用 generate-image.py 的硬编码默认 (`--size 2K` / `gemini-2.5-flash-image` / xais 旧 model), 没用 provider 顶配 | 用户为顶配 provider 付了钱却只拿中等画质。"水彩 2K 够用" / "我不知道 max 是多少所以 2K 安全" / "flash 便宜先试试" 都是把 AI 偏好包装成谨慎默认, 实际吃用户预算 | T11 + Step 2 *Model + 分辨率默认*: Gemini-shape → `gemini-3-pro-image-preview` + `--size 4K`; seedream → `--size 3k`; xais → 必须先 `--list-models` 看动态 catalog 再取最新最强。降配只在用户明示触发 |
 | Auto-picking a provider when multiple toml exist | User pays for the wrong rail / wrong quality / wrong key | If `ls ~/.ppt-anything/providers/*.toml` shows >1 entry, ASK the user which to use — do not silently default |
 | Same layout on every slide | Monotonous deck, reader disengages | Vary layouts per `~/.ppt-anything/styles/<active-style>/style_guide.md` § Layout variation (T5) |
 | Same character pose every slide (e.g. "holding notebook") | Dead deck, no motion | Pick fresh pose from vocabulary per slide (T6) |
