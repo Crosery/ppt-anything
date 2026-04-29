@@ -132,19 +132,28 @@ If the user prefers Path 1 (Google official, fill the key themselves), the agent
 
    **Topic-character fit judgment:** if the user's topic obviously needs a kind of character the library can't serve (e.g. user wants a 写实校园怀旧, library only has abstract OC water droplets), proactively flag that mismatch in the briefing — offer two paths: (a) accept abstract symbolic handling with the existing characters, (b) add a new character now (Branch B/C of step 2). Don't proceed with a topic that can't work and discover it 3 rounds later.
 
+   **Style-library miss judgment (mirror of the character rule above):** if the user's prompt names a style direction the library doesn't have (e.g. user says "科技风" / "复古风" / "商务风" / "赛博朋克" but `styles/` only has `anime-chibi-default`), **the correct response is to BUILD a new style pack — not to relay confusion back as "我对你的话有 N 种理解"**. Library miss IS the signal to build, not a license to ask "which of my interpretations did you mean?". Lead with the build framing:
+
+   > "库里现在只有 [既有 style], 没有 [用户说的 style] — 我去建一个新 pack。在 [用户说的 style] 内部你拍方向: A 硬路线 / B 折中 / C 跟既有 style 混搭 + 该方向 motif。"
+
+   Then once the user picks A/B/C, build the new pack (`manifest.md` + `style_guide.md` + `prompt_template.md` + `outline_template.md` mirroring `anime-chibi-default/`'s structure) and proceed. Building a new style pack is a normal workflow branch, not an exception path. **Anti-pattern**: responding with "我对你说的 X 风格有 2-3 种理解，是哪种？" — that puts the inferential burden back on the user; they already named the style, the missing piece is direction within it.
+
 2. **Clarify what's still missing — including provider choice and generation mode.** After the library snapshot you know what's available, BUT YOU STILL ASK USER A FEW DECISIONS BEFORE TOUCHING `generate-image.py`:
 
    - **Topic-side**: register (serious/playful) if ambiguous from topic, slide count if user didn't say, any new-character/new-style needs that the snapshot revealed.
    - **Provider choice — MANDATORY when more than one provider toml exists.** Do NOT silently default. If `ls ~/.ppt-anything/providers/` shows multiple `.toml` files (e.g. `google.toml` + `nanobanana.toml` + bridges), explicitly ask: `"providers/ 里有 [list]，这次用哪个？"`. Only auto-select when there's exactly ONE configured provider on disk. (Reason: the user pays per call, may want different model/quality, may have one provider keyed and one not — choosing for them costs them money on the wrong rail.)
-   - **Generation mode — MANDATORY ASK before first image.** Two options:
-     - **Sequential (recommended, default if user is silent)**: one slide at a time, wait for each to return. Safe across all providers; respects rate limits.
-     - **Batch (parallel)**: multiple slides at once. Faster but RISKS rate-limiting / temporary bans on third-party bridges (and even some official tiers). If user picks batch, **WARN** explicitly: "并发会撞到 provider 风控，可能限频或临时封号; 失败也扣费。确认要批量吗？" Wait for re-confirmation. Even after re-confirm, cap at 3 parallel calls.
+   - **Generation mode — MANDATORY ASK, no silent default.** This is a **质量 vs 速度** tradeoff (not just 串/并行的技术选择); both axes must be on the table for the user:
+     - **高质量模式 (顺序生成 + AI 中途看图复盘)**: 一张生成完, AI 立刻 `Read` 那张图, 验证角色 IP 没崩 / style 一致 / 中文字串没乱码, 再开下一张。慢, 但每张都过审, 出问题早期就抓到。**适合**: 第一次跑某个 style / 用户对 IP 还原度高敏感 / 重要交付。
+     - **快速模式 (批量并发 + AI 不中途看图)**: 多张并发出货, AI 不审中间结果, 直接拿全部回包打包成 deck。**速度起飞但放弃中间复盘**, 如果某张崩了要等到末尾看 deck 才发现, 重生成的成本也是用户出。**适合**: style 和 character 已经在之前的 deck 里走通过 / 用户赶时间 / 草稿迭代版 / 用户明说"先批一版看看效果"。
+     - **并发上限**: 默认 3 (跨 provider 都安全的上限)。如果用户对自己 provider 的 RPM 有把握, 可以指定到 5 或 8 — 但**先问** "你 provider 的限频是多少 RPM?"。第三方 bridge **永远 ≤3**, 不接受用户上调。
+     - **风控提醒（用户选快速时, 必须复述）**: "批量会撞 provider 风控, 可能限频或临时封号; 失败也扣费, 由你承担。确认要快速模式 + N 并发?" 第一次 429 自动降回顺序模式, 把这点也提前讲明白。
+     - **铁律 — 不许默认**: 用户没明说模式 = **必须问**。"我 default 顺序" / "用户没说我猜要稳" / "outline 已经过了模式不重要" 全是违规借口 —— 这是一笔钱 + 一段时间的 tradeoff, 不该 AI 替用户拍。
 
-   These two questions go in the SAME confirmation message so the user only stops once. Example:
+   **提问示范 — provider + mode 一次问完, 用户只停一次:**
 
-   > "默认 [provider X] + [N 张] + [基调]。还要你拍：
+   > "默认 [provider X] + [N 张] + [基调]。还要你拍:
    >  · provider 选 google / nanobanana / [其他]?
-   >  · 生成模式: 顺序 (推荐, 慢但稳) / 批量 (快但有限频风险)?"
+   >  · 模式: **高质量 (顺序+我每张看图复盘, 慢但稳)** / **快速 (批量+不看图直接出货, 快但中间出问题要末尾才发现)**? 选快速的话默认 3 并发, 你 provider 限频高可以指定到 5/8。"
 3. **Resolve characters — and ALWAYS anchor with a real reference image.** Text description alone is never enough; the model will drift toward its training-data bias (e.g. a 2012 version of a character that's been redesigned in 2024). Every character used in the deck must end this step with BOTH (a) a profile file `~/.ppt-anything/characters/<slug>/<slug>.md` AND (b) a local reference image `~/.ppt-anything/characters/<slug>/<slug>.<ext>` that Claude has Read (vision input) at least once this session.
 
    Three branches:
@@ -166,9 +175,11 @@ If the user prefers Path 1 (Google official, fill the key themselves), the agent
    Use `~/.ppt-anything/styles/<active-style>/outline_template.md` as a thinking scaffold — articulate your design intent in your own words, not by filling blanks.
 
 5. **Gate: share the outline, wait for approval.** Write out your design intent for every slide (using `~/.ppt-anything/styles/<active-style>/outline_template.md` as a thinking scaffold) and show it to the user. Include enough so the user can tell: is each slide purposeful? Do layouts and poses vary? Does any slide feel over/under-filled? Do NOT call `generate.py` yet. Wait for explicit approval.
-6. **Generate slides — sequential by default, batch only on explicit user opt-in.** For each slide: fill every `<<SLOT>>` in `~/.ppt-anything/styles/<active-style>/prompt_template.md`, invoke `generate.py`, WAIT for it to return a file path, then start the next.
+6. **Generate slides — execute the mode the user picked in Step 2, not a default.** For each slide: fill every `<<SLOT>>` in `~/.ppt-anything/styles/<active-style>/prompt_template.md`, invoke `generate.py`.
 
-   **Default = sequential**. If the user picked "batch" in step 2 after warning + re-confirm, you MAY parallelize but cap at 3 concurrent calls and tell the user "如果撞到限频我会立即降回顺序"; on first 429/throttle, drop back to sequential for the rest of the deck.
+   - **高质量模式 (顺序 + 看图)**: 一张生成完, 立即 `Read` 那张 PNG/WebP, 复盘 — 角色 IP 没崩? Style 一致? 中文字串没乱码? 任一不过, 跟用户讲 + 决定是重生成还是接受, 然后再开下一张。每张都是一个 RED→GREEN cycle, 不许跳过 Read。
+   - **快速模式 (批量 + 不看图)**: 用 N 路并发 (Step 2 拍的并发数, 默认 3, 第三方 bridge ≤3) 同时跑全部 slide。**AI 不中途 Read 中间产物**, 直接等所有回包后一次打包。第一次 429/throttle → 立即降回顺序模式, 把剩余未完成 slide 串行跑完, 并通知用户 "撞限频降回顺序"。
+   - **不许混淆**: 用户选高质量你私自批量 = 违规; 用户选快速你磨磨蹭蹭一张张看图 = 浪费用户时间也是违规。Mode 是用户的拍板, 不是 AI 的灵活区。
 
    **`--ref` discipline (load-bearing for character fidelity):**
    - EVERY slide passes the character reference image(s) `~/.ppt-anything/characters/<slug>/<slug>.<ext>` as `--ref`. These are the ground truth; they anchor signature details across the whole deck.
@@ -177,7 +188,7 @@ If the user prefers Path 1 (Google official, fill the key themselves), the agent
    - Daisy-chaining ONLY the previous slide (without re-anchoring to the original character image) accumulates drift across 5–6 slides. Always re-anchor every slide.
    - Resolution: use `--size 3k` when Chinese-text-heavy slides need crisp glyph rendering; default `-r 16:9` (2k) is fine otherwise.
 
-   **⚠️ NEVER parallelize image generation.** The Xais API enforces rate-control; concurrent calls trigger throttling or temporary bans. No background jobs for image calls, no parallel Bash tool uses, no subagent fan-out for generation. One slide at a time. Every time.
+   **⚠️ Parallelization is gated on user-picked mode.** 高质量模式下永远不并发, 一张接一张; 快速模式下按用户拍的并发数并发 (默认 3, 第三方 bridge ≤3 硬上限)。Xais / Seedream / 第三方 bridge 都做 RPM 风控, 越界扣费且可能临时封号 — 所以**并发数永远不超过用户在 Step 2 明确确认过的值**, 不许 AI 自己加码。
 7. **Package & deliver.**
 
    **Default — lightweight external-reference HTML (recommended for almost every deck):**
@@ -216,7 +227,7 @@ If the user prefers Path 1 (Google official, fill the key themselves), the agent
 - [ ] **T4**: EVERY `generate.py` call passes the character reference image(s) as `--ref`; slides 2+ ALSO pass the previous slide as `--ref`. No slide relies on daisy-chained previous slides alone.
 - [ ] **T5**: Each slide uses a DIFFERENT layout from the previous slide (no 5× identical ribbon-banner template)
 - [ ] **T6**: Each slide uses a DIFFERENT character pose from the previous slide
-- [ ] **T7**: Image generation respected the user's chosen mode — sequential by default; batch only after explicit user opt-in (with concurrency warning) and capped at 3 parallel; auto-fall-back to sequential on first 429/throttle.
+- [ ] **T7**: 生成模式被**显式问过** — 高质量(顺序+每张看图复盘) vs 快速(批量+不看图直接出货)。没有静默默认。并发上限默认 3, 用户确认 provider RPM 后可放宽到 5-8, 第三方 bridge 永远 ≤3。第一次 429 自动降回顺序。高质量模式下每张生成完 AI 都 `Read` 过该图; 快速模式下不中途 Read。
 - [ ] **T8**: Every element on every slide earns its place — no filler character / decoration / sentence added to meet a quota. If asked "why is this here?" you can answer with a story reason, not a rule reason.
 - [ ] **T9**: Design intent was articulated per slide and shown to the user BEFORE any generation — covering beat, layout choice, pose choice, copy, decorations (with reasoning)
 - [ ] **T10 (content-first sanity check)**: On each finished slide, the viewer's eye lands on the title/copy first, then the character, then the decorations. If a character or decoration is stealing the scene, shrink or reposition — characters serve the content, not the other way around.
@@ -251,6 +262,8 @@ See `~/.ppt-anything/characters/README.md` for profile schema, the mandatory ref
 | Generating images before showing outline | Burns money on wrong direction | Gate T3 is mandatory |
 | Forgetting `--ref` from slide 2 onward | Characters drift between slides | Check Gate T4 before each call |
 | Auto-running parallel `generate.py` calls without asking the user first | API risk-control throttles or bans + spends user money on the wrong rail | Default sequential; batch only after asking + warning + re-confirm; cap at 3 concurrent; fall back to sequential on first 429 (T7) |
+| 没问用户模式 (高质量/快速) 直接开始生成 — 即使是"安全的"顺序也违规 | 把 钱 + 时间 的 tradeoff 从用户手里拿走。用户想快你给慢, 用户想稳你给快批崩了。"顺序很安全所以不用问"是最危险的借口, 因为它把 AI 的偏好包装成默认 | T7 + Step 2 *Generation mode*: 模式问询是 slide 1 之前的硬门, 必须问。"我 default 顺序" / "用户没说我猜稳" / "outline 已经过了" 全部不算。问的时候必须把"高质量=顺序+我看图"和"快速=批量+不看图"都摆上, 让用户拍 |
+| 用户说一个 style 方向 (科技风/复古风/商务风/赛博朋克), 库里没有该 pack, AI 回 "我对你的话有 2/3 种理解, 是哪个?" | 把推断成本甩回给用户 — 用户已经说清楚他要那个 style 了。库 miss = 该 BUILD 新 pack 的信号, 不是该让用户解释一遍他刚说过的话。"我有 N 种理解" 框架在装认真, 实际是把决策推给用户 | Step 1 *Style-library miss judgment*: 直接说 "库里没这个 style, 我去建新 pack — 在这个 style 内部你拍方向 A/B/C?" 框架是 "我在建, 给我方向", 不是 "我搞不懂你说啥"。建 pack (manifest+style_guide+prompt_template+outline_template) 是正常分支不是异常 |
 | Auto-picking a provider when multiple toml exist | User pays for the wrong rail / wrong quality / wrong key | If `ls ~/.ppt-anything/providers/*.toml` shows >1 entry, ASK the user which to use — do not silently default |
 | Same layout on every slide | Monotonous deck, reader disengages | Vary layouts per `~/.ppt-anything/styles/<active-style>/style_guide.md` § Layout variation (T5) |
 | Same character pose every slide (e.g. "holding notebook") | Dead deck, no motion | Pick fresh pose from vocabulary per slide (T6) |
