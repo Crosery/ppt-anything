@@ -15,6 +15,8 @@ GLOBAL_LIB="$HOME/.anything-ppt"
 CLAUDE_SKILLS="$HOME/.claude/skills"
 SKILL_NAME="ppt-anything"
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
+# 备份必须放 CLAUDE_SKILLS 之外。否则 .bak.<TS>/ 也会被 Claude Code 当 skill 扫描进来制造噪声。
+SKILL_BACKUP_DIR="$GLOBAL_LIB/.skill-backups"
 
 bold() { printf "\033[1m%s\033[0m\n" "$*"; }
 info() { printf "  %s\n" "$*"; }
@@ -40,8 +42,9 @@ if [[ -L "$SKILL_DST" ]]; then
     warn "现在改用 cp -R 覆盖式安装。先把软链移除..."
     rm "$SKILL_DST"
 elif [[ -d "$SKILL_DST" ]]; then
-    backup="${SKILL_DST}.bak.${TIMESTAMP}"
-    info "已存在 $SKILL_DST, 备份到 $backup"
+    mkdir -p "$SKILL_BACKUP_DIR"
+    backup="$SKILL_BACKUP_DIR/${SKILL_NAME}.${TIMESTAMP}"
+    info "已存在 $SKILL_DST, 备份到 $backup (放 skills 目录外, 避免被识别为新 skill)"
     mv "$SKILL_DST" "$backup"
     ok "已备份"
 fi
@@ -173,6 +176,6 @@ info "     其他 CLI:    见项目 AGENT.md"
 info ""
 info "d) 想再次更新 skill (比如本仓库有更新):"
 info "     重新跑 bash scripts/install.sh"
-info "     已存在的 skill 会被备份到 ${SKILL_DST}.bak.<时间戳>/, 然后覆盖"
+info "     已存在的 skill 会被备份到 $SKILL_BACKUP_DIR/$SKILL_NAME.<时间戳>/, 然后覆盖"
 echo ""
 bold "安装完成"
