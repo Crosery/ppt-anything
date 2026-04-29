@@ -39,7 +39,12 @@ This skill is **self-contained** — no external sub-skills required.
 
 ### First-run wizard (no provider configured yet)
 
-The agent does NOT proactively scan toml files. When `generate-image.py` returns 401 / missing-config on first invocation, OR when the user is obviously running the skill the first time, the agent opens this conversation:
+**Trigger (mandatory, BEFORE asking the user any briefing question):** The agent runs `~/.claude/skills/ppt-anything/tools/check-providers.py`. The script reads provider tomls internally and outputs a key-free summary on stdout:
+
+  - Exit `0` + `READY: <names>` → at least one provider is configured. Note the names; surface them in Step 2 as the choices for "which provider".
+  - Exit `1` + `NEED-CONFIG: ...` → STOP. Open the conversation below before doing anything else.
+
+The agent does NOT cat / Read any toml. `check-providers.py` does the reading; agent only sees ok/incomplete summaries.
 
 > "I notice ppt-anything has no usable provider configured yet. Two paths:
 >
@@ -100,7 +105,14 @@ If the user prefers Path 1 (Google official, fill the key themselves), the agent
 
 ## Workflow
 
-1. **Library snapshot first, briefing second.** Before asking the user any open-ended brief questions (audience / register / slide count / character preference / etc.), do these reads in parallel:
+0. **Provider readiness gate (run BEFORE everything else, including library snapshot).** Run `~/.claude/skills/ppt-anything/tools/check-providers.py`. Read the stdout summary:
+
+   - Exit 0 → at least one provider is `READY` or `verified`. Remember the list; you'll surface it as Step 2's provider-choice options. Proceed to Step 1.
+   - Exit 1 → no provider usable. **DO NOT proceed to briefing.** Surface the problem to the user and run the first-run wizard (§ First-run wizard above): walk them through Path 1 (self-fill `google.toml`) or Path 2 (`tools/register-provider.py` for a bridge). Resume Step 1 only after the user has finished setup AND a re-run of `check-providers.py` exits 0.
+
+   **Anti-pattern (do NOT do this):** don't proceed to briefing/outline/generation when the gate fails — you'll waste user time + collect a brief that can't be executed because the rail isn't ready. The gate is the FIRST thing in this skill, not an afterthought triggered by a 401 mid-flow.
+
+1. **Library snapshot, briefing second.** Before asking the user any open-ended brief questions (audience / register / slide count / character preference / etc.), do these reads in parallel:
 
    - `ls ~/.ppt-anything/characters/` — list available character slugs
    - `ls ~/.ppt-anything/styles/` — list available style packs
