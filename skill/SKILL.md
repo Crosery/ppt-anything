@@ -31,11 +31,11 @@ This skill is **self-contained** — no external sub-skills required.
 
 ### Provider iron rules (read before first run)
 
-1. **Agent does NOT read provider toml files.** The toml stores `api_key`. Reading it = pulling the key into the agent's conversation context (cached, persisted in memory systems, replayed across turns, leaked between agents). To check whether config is ready, call `generate-image.py` and let it fail with a clear status, OR call `tools/check-providers.py` (TODO — surfaces only `ok` / `need-config`, never the key). **Never `cat` / `Read` any `*.toml` file body.**
+1. **Agent does NOT read provider toml files.** The toml stores `api_key`. Reading it = pulling the key into the agent's conversation context (cached, persisted in memory systems, replayed across turns, leaked between agents). To check whether config is ready, call `generate-image.py` and let it fail with a clear status — its error messages tell you which field is missing without exposing the key. **Never `cat` / `Read` any `*.toml` file body.** `ls` of the filenames is fine; contents are not.
 
 2. **Handing api_key / base_url to the agent is a risk operation.** When the user's path is "I'll edit the toml myself", the agent sees zero key bytes — safe. When the user's path is "agent, please write the toml for me", the agent must explicitly warn ("your key will enter my context, the recommended path is option A") and require a second confirmation before touching the key string.
 
-3. **Agents that register a new provider MUST verify connectivity.** Writing the toml is not enough — call `register-provider.py` (TODO) which uses the cheapest model + smallest prompt to actually round-trip one image, and only marks `verified=true` when that succeeds. A failed verify means the toml goes back to `verified=false` and the user is told what to check.
+3. **Agents that register a new provider MUST verify connectivity.** Writing the toml is not enough — call `tools/register-provider.py` which uses the cheapest model + smallest prompt to actually round-trip one image, and only marks `verified=true` when that succeeds. A failed verify means the toml goes back to `verified=false` and the user is told what to check.
 
 ### First-run wizard (no provider configured yet)
 
@@ -61,9 +61,30 @@ The agent does NOT proactively scan toml files. When `generate-image.py` returns
 >
 > Which path? (1 / 2 / something I haven't listed)"
 
-If the user picks Path 2, the agent must then run the connectivity self-test (rule 3) and report verified vs failed.
+If the user picks Path 2, the agent runs the connectivity self-test via `tools/register-provider.py` (which writes the toml AND verifies it round-trips one image before returning). See § Setup tool below.
 
 `generate-image.py` reads credentials from `~/.ppt-anything/providers/<name>.toml` itself (lookup table: `GOOGLE_API_KEY` → `google.toml`, `NANOBANANA_API_KEY` → `nanobanana.toml`, `ARK_API_KEY` → `seedream.toml`, `XAIS_API_KEY` → `xais.toml`). The agent does not need to involve itself — call the script and let it handle the secret.
+
+### Setup tool — `register-provider.py`
+
+The agent uses this when registering ANY non-default provider. It:
+
+1. Writes `~/.ppt-anything/providers/<name>.toml` from the user-supplied fields.
+2. Generates one tiny image via `gemini-2.5-flash-image` (~$0.04, ~10s) to verify base_url + api_key + auth_style actually work end-to-end.
+3. Marks `[provider].verified = true` only on success. On failure, the toml is left with `verified = false` and the script exits non-zero so the agent flags the user to check the offending field.
+
+**Invocation pattern (agent-side; key never goes on the command line — pipe via stdin):**
+
+```bash
+echo "$USER_KEY" | ~/.claude/skills/ppt-anything/tools/register-provider.py \
+  --name my-bridge \
+  --base-url https://example.com \
+  --auth-style bearer \
+  --docs-url https://example.com/docs \
+  --key-stdin
+```
+
+If the user prefers Path 1 (Google official, fill the key themselves), the agent does NOT run register-provider.py — it tells them to edit `google.toml` directly, then they re-invoke the skill and the agent verifies on first generation.
 
 ## When to use
 
@@ -79,8 +100,28 @@ If the user picks Path 2, the agent must then run the connectivity self-test (ru
 
 ## Workflow
 
-1. **Clarify the brief.** Topic, target audience, register (serious/playful), character preferences (if any), slide-count preference (if user has one).
-2. **Resolve characters — and ALWAYS anchor with a real reference image.** Text description alone is never enough; the model will drift toward its training-data bias (e.g. a 2012 version of a character that's been redesigned in 2024). Every character used in the deck must end this step with BOTH (a) a profile file `~/.ppt-anything/characters/<slug>/<slug>.md` AND (b) a local reference image `~/.ppt-anything/characters/<slug>/<slug>.<ext>` that Claude has Read (vision input) at least once this session.
+1. **Library snapshot first, briefing second.** Before asking the user any open-ended brief questions (audience / register / slide count / character preference / etc.), do these reads in parallel:
+
+   - `ls ~/.ppt-anything/characters/` — list available character slugs
+   - `ls ~/.ppt-anything/styles/` — list available style packs
+   - `ls ~/.ppt-anything/providers/` — list provider toml files (filenames only; **do NOT cat them — agent never reads provider toml**)
+
+   For each character slug, `Read` the character's `<slug>.md` profile to know what it looks like (you'll need this to judge fit). For each style, glance at `<style>/manifest.md` if it exists.
+
+   **Then** open the briefing with the user — **lead with what's actually in the library**, not a generic 5-question form. Example shape:
+
+   > "库里现在有：橙橙(暖橙水滴 · 冲劲) + 蓝蓝(深蓝水滴 · 稳健搭子)、anime-chibi-default 风格、google + nanobanana provider。
+   >
+   > 你想做的是 [回放用户主题]。这俩水滴吉祥物天然配 [topic-fit 评估]。
+   >
+   > 我需要你定的：[只问 1-2 个 truly missing 的关键点 — 例如基调、张数、是否要新建角色]"
+
+   **Anti-pattern (do NOT do this):** Send a 5-question form (视角 / 切片 / 基调 / 角色 / 张数) without first surfacing what's available. The library constrains feasibility; ignoring it makes briefing rounds blow up.
+
+   **Topic-character fit judgment:** if the user's topic obviously needs a kind of character the library can't serve (e.g. user wants a 写实校园怀旧, library only has abstract OC water droplets), proactively flag that mismatch in the briefing — offer two paths: (a) accept abstract symbolic handling with the existing characters, (b) add a new character now (Branch B/C of step 2). Don't proceed with a topic that can't work and discover it 3 rounds later.
+
+2. **Clarify what's still missing.** After the library snapshot you should know what defaults to apply. Ask the user only for the things that aren't decidable from the library: register (serious/playful) if ambiguous from topic, slide count if user didn't say, and any new-character/new-style needs that the snapshot revealed.
+3. **Resolve characters — and ALWAYS anchor with a real reference image.** Text description alone is never enough; the model will drift toward its training-data bias (e.g. a 2012 version of a character that's been redesigned in 2024). Every character used in the deck must end this step with BOTH (a) a profile file `~/.ppt-anything/characters/<slug>/<slug>.md` AND (b) a local reference image `~/.ppt-anything/characters/<slug>/<slug>.<ext>` that Claude has Read (vision input) at least once this session.
 
    Three branches:
 
@@ -89,7 +130,7 @@ If the user picks Path 2, the agent must then run the connectivity self-test (ru
    - **Branch C — user-provided image** (character can't be found online / OC / obscure): ask the user for the image path/URL if not given → copy into `~/.ppt-anything/characters/<slug>/<slug>.<ext>` (never leave in `/tmp`) → `Read` it → write the profile with `image_provenance: user-provided`, leaning more on explicit feature description since the model has no latent memory to summon.
 
    See `~/.ppt-anything/characters/README.md` for the full schema, two-branch workflow details, and the real failure this rule was written to prevent. **Skipping the Read step is the #1 source of character drift. Do not skip it even if the name feels famous.**
-3. **Plan the story arc — think, don't fill a form.** Decide slide count based on what the topic needs. For each slide, you are designing a beat in a story — think through it, don't fill a checklist:
+4. **Plan the story arc — think, don't fill a form.** Decide slide count based on what the topic needs. For each slide, you are designing a beat in a story — think through it, don't fill a checklist:
    - What is the ONE core message of this slide? What emotion should the viewer feel?
    - Which layout (A–H from `~/.ppt-anything/styles/<active-style>/style_guide.md` § Layout variation) best fits that message — OR does this beat earn a **custom scene** (scrapbook, corkboard, chat window, recipe card, desk workspace...) per § Scene-ify? Scene-ify for memory / emotion / lived-experience; A–H for teaching / reference / taxonomy. **Before committing**: run § Scene-ify's modifier check (POV / tense / register / simultaneity). If a vocabulary row fits 1:1 after the check, trust it — don't drift to look creative. If no row holds your modifiers, invent.
    - How much copy does this beat need? A big emotional moment might be three bold words; a teaching beat may need a paragraph. **Let the content drive density, not a rule.**
@@ -100,8 +141,8 @@ If the user picks Path 2, the agent must then run the connectivity self-test (ru
 
    Use `~/.ppt-anything/styles/<active-style>/outline_template.md` as a thinking scaffold — articulate your design intent in your own words, not by filling blanks.
 
-4. **Gate: share the outline, wait for approval.** Write out your design intent for every slide (using `~/.ppt-anything/styles/<active-style>/outline_template.md` as a thinking scaffold) and show it to the user. Include enough so the user can tell: is each slide purposeful? Do layouts and poses vary? Does any slide feel over/under-filled? Do NOT call `generate.py` yet. Wait for explicit approval.
-5. **Generate slides STRICTLY IN SEQUENCE.** For each slide: fill every `<<SLOT>>` in `~/.ppt-anything/styles/<active-style>/prompt_template.md`, invoke `generate.py`, WAIT for it to return a file path, then start the next.
+5. **Gate: share the outline, wait for approval.** Write out your design intent for every slide (using `~/.ppt-anything/styles/<active-style>/outline_template.md` as a thinking scaffold) and show it to the user. Include enough so the user can tell: is each slide purposeful? Do layouts and poses vary? Does any slide feel over/under-filled? Do NOT call `generate.py` yet. Wait for explicit approval.
+6. **Generate slides STRICTLY IN SEQUENCE.** For each slide: fill every `<<SLOT>>` in `~/.ppt-anything/styles/<active-style>/prompt_template.md`, invoke `generate.py`, WAIT for it to return a file path, then start the next.
 
    **`--ref` discipline (load-bearing for character fidelity):**
    - EVERY slide passes the character reference image(s) `~/.ppt-anything/characters/<slug>/<slug>.<ext>` as `--ref`. These are the ground truth; they anchor signature details across the whole deck.
@@ -111,7 +152,7 @@ If the user picks Path 2, the agent must then run the connectivity self-test (ru
    - Resolution: use `--size 3k` when Chinese-text-heavy slides need crisp glyph rendering; default `-r 16:9` (2k) is fine otherwise.
 
    **⚠️ NEVER parallelize image generation.** The Xais API enforces rate-control; concurrent calls trigger throttling or temporary bans. No background jobs for image calls, no parallel Bash tool uses, no subagent fan-out for generation. One slide at a time. Every time.
-6. **Package & deliver.**
+7. **Package & deliver.**
 
    **Default — lightweight external-reference HTML (recommended for almost every deck):**
    Compress each PNG to visually-lossless WebP (q=95; typically ~80-90% smaller than PNG for watercolor illustrations) and wrap them in a ~3 KB HTML that references them via relative paths. Opens instantly; folder is self-contained and droppable into GH Pages or any static host.
