@@ -1,8 +1,13 @@
 # 不追踪用户全局库与本地敏感配置
-~/.anything-ppt/
+# 注: ~/.anything-ppt/ 是用户 home 下的目录, git 不展开 ~ 也不会扫到 home。
+# 下面 .anything-ppt/ 是双保险, 如果有人把全局库 symlink 进 repo 不会被追踪。
+.anything-ppt/
 *.env
 .env
 .env.local
+# provider toml 含 api_key, 任何位置都禁止追踪 (例外: .toml.example 模板可以)
+providers/*.toml
+!providers/*.toml.example
 
 # 不追踪生图临时输出
 *.tmp.png

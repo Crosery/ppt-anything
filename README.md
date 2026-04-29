@@ -85,20 +85,22 @@ bash scripts/install.sh
 
 ### 2. 配一个生图 provider
 
-`install.sh` 会自动把 `nanobanana.toml.example` 平铺成 `nanobanana.toml`，但 `[auth]` 三个字段全留空。
-你需要去填：
+`install.sh` 会把 `google.toml.example` 平铺成 `google.toml` —— 默认指向 **Google 官方 Gemini Image API**，`base_url` / `docs_url` / `auth_style` 已经预填官方值，你只需要填 `api_key`：
 
 ```bash
-vim ~/.anything-ppt/providers/nanobanana.toml
-# 把 api_key / base_url / docs_url 三项都填上你申请到的真实值
+# 1) 去 https://aistudio.google.com/app/apikey 申请一个 Gemini API key
+# 2) 自己用编辑器粘进去（强烈推荐，AI agent 永远不经手 key）
+vim ~/.anything-ppt/providers/google.toml
 ```
 
-**想加别的渠道**（gpt-image-2 / Replicate / 自建网关 / 任何 OpenAI-compatible）：
-- 自己加：拷 `docs/provider-examples/gpt-image-2.toml.example` 到 `~/.anything-ppt/providers/`，按 schema 填
-- 让 AI 加：在 AI CLI 里说"帮我加 &lt;provider&gt;"，准备好 api_key + base_url + 文档链接 + 模型清单
+**想接第三方桥接**（任何 Gemini-shape 或 OpenAI-image-compatible 网关）：
+- **自己加（推荐，安全）**：`cp google.toml my-bridge.toml`，把 `base_url` 改成桥接网关地址，`auth_style` 改成 `"bearer"`，填 `api_key`
+- **让 AI 加（有风险）**：在 AI CLI 里说"帮我加一个第三方桥接"，准备好 base_url + api_key + 文档链接 + auth_style。**注意**：把 api_key 给 AI agent 意味着 key 会进 agent 的对话上下文（可能被缓存 / 记忆系统持久化 / 多轮复述）。AI 会先警告再二次确认。
 
-AI 启动 skill 时会扫 `~/.anything-ppt/providers/`，对没填齐字段的 provider 给警告并问你怎么处理。
-**AI 永远不替你生成或保管 api_key**——这是铁律。
+**铁律**：
+- AI agent 不读 toml 文件本体（不会把 key 读进上下文）
+- AI agent 帮你建新 toml 后必须跑连通性自检，验通才算注册成功
+- AI 永远不替你生成 / 保管 api_key
 
 ### 3. 在你的 AI CLI 里调用
 
@@ -120,11 +122,11 @@ AI 启动 skill 时会扫 `~/.anything-ppt/providers/`，对没填齐字段的 p
 ~/.anything-ppt/
 ├── characters/    人物库  (默认: 橙橙 chengcheng + 蓝蓝 lanlan, 「搭子」AI OC 双核 mascot)
 ├── styles/        风格模板库  (默认: anime-chibi-default 萌系日漫水彩)
-├── providers/     生图 API 库  (默认只装 nanobanana 模板, 字段全空待填; 其他渠道靠扩展)
+├── providers/     生图 API 库  (默认只装 google.toml 指向官方 Gemini API; 其他渠道靠扩展)
 └── demo/          每次生成的成品归档 (按日期 + 主题命名)
 ```
 
-**默认值**：启动 skill 时会告诉你"这次默认用 [橙橙 + 蓝蓝 搭子双核] 角色 + [萌系日漫] 风格 + [nanobanana] provider，要换吗？"。
+**默认值**：启动 skill 时会告诉你"这次默认用 [橙橙 + 蓝蓝 搭子双核] 角色 + [萌系日漫] 风格 + [google] provider，要换吗？"。
 **自动扩展**：你说"用某某动漫角色"或"用某某风格"，AI 没有的话会去网上搜，下载、写 profile、塞进库，下次直接用。
 
 详见 [`docs/library-management.md`](docs/library-management.md)。
@@ -144,7 +146,8 @@ ppt-anything/
 │   ├── characters/chengcheng/   橙橙 (搭子双核之「冲」)
 │   ├── characters/lanlan/       蓝蓝 (搭子双核之「稳」)
 │   ├── styles/anime-chibi-default/
-│   └── providers/nanobanana.toml.example   出厂只装它一个, 其他渠道在 docs/provider-examples/ 留 schema
+│   └── providers/google.toml.example       出厂只装它一个, 默认指向 Google 官方 Gemini API
+│                                           第三方桥接 (Gemini-shape 或 OpenAI-image-compatible) 由用户/AI 临时建
 ├── docs/                        进阶文档
 ├── scripts/install.sh
 └── assets/                      项目自身的 logo / 架构图

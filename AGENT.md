@@ -49,8 +49,11 @@ bash scripts/install.sh
 │   │   ├── style.md                    风格特性 + content-first 原则 + layout 表 + scene-ify
 │   │   └── prompt_template.md          带 <<SLOT>> 的 prompt 模板
 │   └── <slug>/                         其他风格包
-├── providers/                          生图 API 库 (出厂只装 nanobanana, 其他靠扩展)
-│   └── nanobanana.toml                 base_url / api_key (默认空) / models[] / how_to_use
+├── providers/                          生图 API 库 (出厂只装 google.toml, 其他靠扩展)
+│   └── google.toml                     默认指向 Google Gemini Image 官方 API
+│                                       base_url / docs_url 已预填官方值; api_key 待用户填
+│                                       auth_style = "google" (X-Goog-Api-Key)
+│                                       想接桥接? cp 一份成 my-bridge.toml, 改 auth_style="bearer"
 └── demo/                               每次成品归档
     └── YYYY-MM-DD-<slug>/
         ├── outline.md                  本次的 outline（用户审过的版本）
@@ -65,37 +68,48 @@ bash scripts/install.sh
 
 ## 工作流（生成一套 PPT 时）
 
-### 0. 启动前 provider 自检 (强制, 最先做)
+### 0. Provider 配置 — 首跑向导 (重要, 先读铁律再看流程)
 
-进入 skill 第一件事就扫 `~/.anything-ppt/providers/*.toml`，对每个 .toml 检查 `[auth]` 下**三个字段全部要齐**:
-- `api_key`
-- `base_url`
-- `docs_url`
+#### 三条铁律
 
-任一为空字符串 `""` / `<...>` 占位符 / 包含 `PLACEHOLDER` → 视为未配置。AI **不替用户猜任何字段**, 包括 base_url 和 docs_url——哪怕官网是众所周知的也要等用户自己填。
+1. **agent 不读 provider toml 文件**。toml 里有 api_key, agent 不该把 key 字符串读进对话上下文 (会被缓存 / 记忆系统持久化 / 多轮复述 / 多 agent transcript 流转)。需要判断"配置是否就绪"时, agent 调 `tools/check-providers.py`(还没写, 见 TODO) 或直接调 `tools/generate-image.py` 让脚本去读, 由脚本输出 ok/need-config 状态。**绝不 cat / Read 任何 *.toml 文件本体。**
 
-**没有任何 provider 字段填齐**: 立即停下来告诉用户，给两条路:
+2. **把 api_key/base_url 给 agent 是风险操作**。若用户选择"自己填 toml"路径, agent 一字不经手 — 安全。若用户选择"agent 帮填"路径, agent 必须显式警告 + 二次确认才能落笔。
 
-> "当前 `~/.anything-ppt/providers/` 下没有任何 provider 字段填齐 (需要 `api_key` + `base_url` + `docs_url` 三项), 我没法生图。你有两个选项:
+3. **agent 注册新 provider 后必须验通**。写完 toml 不算完, 必须用最便宜模型 + 最小 prompt 跑一发图, 确认 base_url + key + auth_style 三件套实际能通, 才算注册成功。失败 → 标记 toml `verified=false` 让用户回去检查。(register-provider.py 见 TODO)
+
+#### 首跑向导 (没任何 provider 配置好时触发)
+
+agent 不主动扫 toml。当 generate-image.py 第一次调用因 401/缺字段失败时, 或用户明显第一次跑 skill 时, agent 启动这个对话:
+
+> "我注意到 ppt-anything 还没有可用的 provider 配置。你想用哪条路?
 >
-> **方案 A — 你自己加 (推荐, 安全)**: 打开 `~/.anything-ppt/providers/nanobanana.toml`, 把 `[auth]` 下三个字段都填上你申请到的真实值。改完告诉我, 我重扫。
+> **路径 1 — Google 官方 (推荐)**
+> 出厂自带的 `~/.anything-ppt/providers/google.toml` 已经把 base_url / docs_url / auth_style 都预填好了, 你只需要:
+>   1. 去 https://aistudio.google.com/app/apikey 申请一个 Gemini API key
+>   2. 用 vim / 任意编辑器, 自己把 key 粘进 google.toml 的 `[auth].api_key`
 >
-> **方案 B — 我帮你加 (危险操作)**: 你需要给我 4 样东西:
->   1. **api_key** (我会写到本地 .toml, 不上传, 但我**强烈建议你自己用 vim 填**, 不要让我经手 key 字符串)
->   2. **base_url** (网关地址, 你提供, 我不猜)
->   3. **docs_url** (官方 API 文档地址, 我会 WebFetch 读它确认请求 schema)
->   4. **模型清单** (默认模型 + 可选模型 ID)
+> **强烈推荐这条路** — 我永远不经手你的 key 字符串。
 >
->   我会按 schema 写一份 .toml 到 `~/.anything-ppt/providers/<name>.toml`, 但**不会替你生成 key, 也不会保管 key**。
+> **路径 2 — 第三方桥接 (有风险)**
+> 如果你接入了某个第三方 Gemini-shape 或 OpenAI-image-compatible 桥接服务, 我可以帮你建一份新 toml。你需要给我:
+>   - `base_url` (网关地址)
+>   - `api_key` (这一项给我意味着 key 会进我的对话上下文 - 风险面: 缓存 / 记忆 / 多 agent 流转)
+>   - `docs_url` (我会 WebFetch 读它对齐请求 schema)
+>   - `auth_style` ("google" 走 X-Goog-Api-Key / "bearer" 走 Authorization: Bearer)
 >
-> 你选 A 还是 B?"
+> **再次确认**: 如果你选路径 2, 我会动你的 key 字符串。如果你不放心, 改走路径 1, 自己 cp google.toml 一份, 改 base_url + auth_style + key, 我永远不看 key。
+>
+> 你选哪条? (路径 1 / 路径 2 / 用别的我没列的方式)"
 
-**等用户明确选**, 不要自作主张走 B, 也不要因为"这个 provider 我知道官网"就替用户填 base_url / docs_url。
+agent 等用户明确选, 不自作主张, 不因为"这个 provider 我知道官网"就替用户填字段。
+
+如果走路径 2, agent 写完 toml 后**必须**调 register-provider.py(或同等流程)跑一发连通性自检, 确认通了才算注册完成。
 
 ### 1-N. 正式生成
 
 1. **澄清 brief** — 主题、受众、语气、张数偏好。模糊就追问，别猜。
-2. **声明默认值** — 一句话告诉用户："这次默认用 `characters/chengcheng + lanlan`(搭子双核) + `styles/anime-chibi-default` + `providers/nanobanana`，要换吗？"。等用户确认或换。
+2. **声明默认值** — 一句话告诉用户："这次默认用 `characters/chengcheng + lanlan`(搭子双核) + `styles/anime-chibi-default` + `providers/google`，要换吗？"。等用户确认或换。
 
    橙橙 + 蓝蓝是「搭子」AI OC 双核 mascot，几乎所有场景成对出现：橙橙负责冲（行动/抛想法/庆祝），蓝蓝负责稳（分析/把关/复盘）。这是 OC，模型没有训练记忆，**必须每张都传 ref 图 + 显式 feature 一句话**（profile 里的 one-liner 字段）。
 3. **解析人物/风格/provider**:
@@ -150,10 +164,11 @@ bash scripts/install.sh
 2. 不存在 → 让用户给参考图 / 描述关键词 → 仿照 `anime-chibi-default/style.md` 结构写新 style pack
 3. 必须包含: content-first 原则、layout 表、prompt 模板、字体偏好
 
-**用户说"用 OpenAI gpt-image-1"**：
-1. 检查 `~/.anything-ppt/providers/openai-image.toml` 是否存在 + api_key 是否填
-2. 不存在 → 创建 toml 模板，让用户填 key
-3. 永远不替用户填 key
+**用户说"用 OpenAI gpt-image-1"** (或任何第三方桥接):
+1. 检查 `~/.anything-ppt/providers/<某 toml>` 是否已配置 — **不读 toml 内容**, 只让 generate-image.py / check-providers.py 报告状态。
+2. 没有合适 provider → 启动 §0 首跑向导, 走"路径 2"流程, 同时显式警告"key 给 agent 是风险操作"。
+3. 永远不替用户填 key — 用户不允许 agent 经手 key 字符串时, 引导用户自己 cp + vim。
+4. 用户允许 agent 帮填 → 写完 toml 必须跑连通性自检 (register-provider.py), 不准"我写完了"就走人。
 
 ---
 

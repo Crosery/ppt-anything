@@ -21,17 +21,49 @@ This skill is **self-contained** — no external sub-skills required.
 
 | Path | Role |
 |---|---|
-| `~/.claude/skills/ppt-anything/tools/generate-image.py` | Image client. Supports nanobanana / seedream / xais. |
-| `~/.anything-ppt/providers/<name>.toml` | API credentials (`[auth].api_key` + `[auth].base_url` + `[auth].docs_url`). **Source of truth for keys.** |
+| `~/.claude/skills/ppt-anything/tools/generate-image.py` | Image client. Supports `google` (default, official Gemini) / `nanobanana` (third-party Gemini bridge) / `seedream` / `xais`. |
+| `~/.anything-ppt/providers/<name>.toml` | API credentials (`[auth].api_key` + `[auth].base_url` + `[auth].docs_url` + `[auth].auth_style`). **Source of truth for keys. The agent never reads this file directly — `generate-image.py` does.** |
 | `~/.anything-ppt/characters/<slug>/<slug>.{md,png}` | Character library. Skill reads from here at runtime. |
 | `~/.anything-ppt/styles/<style-name>/` | Style packs. Default `anime-chibi-default/` ships with the skill. |
 | `~/.anything-ppt/demo/<YYYY-MM-DD>-<slug>/` | Auto-archive of every generated deck (outline + slides + html + meta). |
 | `~/.claude/skills/ppt-anything/tools/build-html-ppt-external.py` | Default HTML packager (WebP external refs, ~3KB shell). |
 | `~/.claude/skills/ppt-anything/tools/build-html-ppt.py` | Single-file HTML packager (base64, only for WeChat/email use cases). |
 
-**Provider-zero startup check (mandatory)**: On every invocation, scan `~/.anything-ppt/providers/*.toml`. If no provider has all three of `api_key` / `base_url` / `docs_url` filled, STOP — give the user two paths (self-fill or AI-assisted-fill with an explicit danger warning). Never invent / guess these values.
+### Provider iron rules (read before first run)
 
-`generate-image.py` reads credentials from `~/.anything-ppt/providers/<name>.toml` first (lookup table: `NANOBANANA_API_KEY` -> `nanobanana.toml`, `ARK_API_KEY` -> `seedream.toml`, `XAIS_API_KEY` -> `xais.toml`). Falls back to `tools/.env` and process env for legacy users.
+1. **Agent does NOT read provider toml files.** The toml stores `api_key`. Reading it = pulling the key into the agent's conversation context (cached, persisted in memory systems, replayed across turns, leaked between agents). To check whether config is ready, call `generate-image.py` and let it fail with a clear status, OR call `tools/check-providers.py` (TODO — surfaces only `ok` / `need-config`, never the key). **Never `cat` / `Read` any `*.toml` file body.**
+
+2. **Handing api_key / base_url to the agent is a risk operation.** When the user's path is "I'll edit the toml myself", the agent sees zero key bytes — safe. When the user's path is "agent, please write the toml for me", the agent must explicitly warn ("your key will enter my context, the recommended path is option A") and require a second confirmation before touching the key string.
+
+3. **Agents that register a new provider MUST verify connectivity.** Writing the toml is not enough — call `register-provider.py` (TODO) which uses the cheapest model + smallest prompt to actually round-trip one image, and only marks `verified=true` when that succeeds. A failed verify means the toml goes back to `verified=false` and the user is told what to check.
+
+### First-run wizard (no provider configured yet)
+
+The agent does NOT proactively scan toml files. When `generate-image.py` returns 401 / missing-config on first invocation, OR when the user is obviously running the skill the first time, the agent opens this conversation:
+
+> "I notice ppt-anything has no usable provider configured yet. Two paths:
+>
+> **Path 1 — Google official (recommended)**
+> The shipped `~/.anything-ppt/providers/google.toml` already has `base_url` / `docs_url` / `auth_style` filled with the official values. You only need to:
+>   1. Get a Gemini API key from <https://aistudio.google.com/app/apikey>
+>   2. Open `google.toml` in your editor and paste it into `[auth].api_key`
+>
+> **Strongly recommended.** I never touch your key bytes.
+>
+> **Path 2 — Third-party bridge (risky)**
+> If you've subscribed to some third-party Gemini-shape or OpenAI-image-compatible bridge, I can write the toml for you. You'd give me:
+>   - `base_url` (gateway URL)
+>   - `api_key` (giving this to me means it enters my context — caching / memory / multi-agent transcript leakage are all on the table)
+>   - `docs_url` (I'll WebFetch it to confirm request/response shape)
+>   - `auth_style` (`google` for X-Goog-Api-Key, `bearer` for OpenAI-style Authorization)
+>
+> **Reconfirm**: if you go Path 2, I will see your key. If you'd rather I never see it, switch to Path 1 — `cp google.toml my-bridge.toml`, edit it yourself.
+>
+> Which path? (1 / 2 / something I haven't listed)"
+
+If the user picks Path 2, the agent must then run the connectivity self-test (rule 3) and report verified vs failed.
+
+`generate-image.py` reads credentials from `~/.anything-ppt/providers/<name>.toml` itself (lookup table: `GOOGLE_API_KEY` → `google.toml`, `NANOBANANA_API_KEY` → `nanobanana.toml`, `ARK_API_KEY` → `seedream.toml`, `XAIS_API_KEY` → `xais.toml`). The agent does not need to involve itself — call the script and let it handle the secret.
 
 ## When to use
 

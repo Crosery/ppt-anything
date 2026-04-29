@@ -1,0 +1,78 @@
+# Google Gemini Image (官方默认 provider 模板)
+#
+# 这是 ppt-anything 出厂自带的唯一默认 provider 模板, 默认指向 Google 官方
+# Gemini API。拿到 api_key 之前: skill 启动时检测 [auth].api_key 仍为空,
+# 会启动首跑向导询问你怎么配。
+#
+# ============================================================================
+# 安全提醒 (必读)
+# ============================================================================
+# 把 api_key 给 AI agent 是有风险的操作:
+#   - key 会进 agent 的对话上下文 (可能被缓存 / 记忆系统持久化 / 多轮复述)
+#   - 多 agent 协作场景 key 会在 transcript 之间流转
+#   - 出问题不可追溯
+#
+# **强烈推荐**: 用 vim / 任意编辑器自己填这个文件, agent 永远不经手 key 字符串。
+# 如果一定要 agent 帮填, 它必须显式警告并二次确认才能动笔。
+# ============================================================================
+#
+# 配置流程:
+#   1) cp google.toml.example google.toml
+#   2) 去 https://aistudio.google.com/app/apikey 申请一个 Gemini API key
+#   3) 把 api_key 填进下面 [auth].api_key
+#   4) base_url / docs_url / auth_style 已经预填好官方值, 不用改
+#   5) 重新触发 ppt-anything skill, 它会跑一次连通性自检
+#
+# 用第三方 Gemini-shape 桥接 (非官方渠道)?
+#   出厂模板不点名任何具体桥接服务。如果你接入了某个第三方桥接:
+#   - 让 AI agent 帮你建一份新 toml: "我有个第三方 Gemini 桥接, base_url 是 X,
+#     docs 在 Y, key 是 Z, 用 bearer auth"
+#   - agent 会 cp 这个模板 -> my-bridge-<name>.toml, 填字段, 跑连通性自检
+#   - 整个过程 agent 必须先警告你 key 风险 (见上)
+
+[provider]
+name = "google"
+display_name = "Google Gemini Image (Nano Banana 官方)"
+region = "global"
+default = true                          # 出厂默认 provider, 多 toml 同时存在时优先这个
+
+[auth]
+# 三个字段都必须填齐才能用。skill 启动检测到 api_key 为 "" / "<...>" / "PLACEHOLDER" 都判为未配置。
+api_key   = ""
+base_url  = "https://generativelanguage.googleapis.com"
+docs_url  = "https://ai.google.dev/gemini-api/docs/image-generation"
+
+# auth_style 决定怎么把 api_key 拼进 HTTP 请求:
+#   - "google" -> header X-Goog-Api-Key: <key>     (Google 官方原生)
+#   - "bearer" -> header Authorization: Bearer <key>  (OpenAI-style, 第三方桥接常用)
+auth_style = "google"
+
+[models]
+default = "gemini-3-pro-image-preview"
+choices = [
+    "gemini-3-pro-image-preview",       # Pro: 最高质量, 1K/2K/4K, 强中文文字
+    "gemini-2.5-flash-image",           # Flash: 便宜快, 草稿和连通性自检用
+    "gemini-3.1-flash-image-preview",   # Flash 新版
+]
+
+[defaults]
+size = "4K"                             # 仅 pro 系模型支持 imageSize
+aspect_ratio = "16:9"
+
+[capabilities]
+image_to_image = true                   # 支持 --ref reference image
+max_ref_size_mb = 10                    # base64 内联上限
+multi_ref = true
+billing_on_failure = true               # 重要: 失败也扣钱, 不要盲重试
+
+[how_to_use]
+# AI 怎么调用这个 provider
+# 当前依赖的 image client 见 ~/.claude/skills/ppt-anything/tools/generate-image.py
+invoke = "generate-image.py --provider google -m {model} --size {size} -r {aspect_ratio} --ref {ref} '{prompt}'"
+notes = """
+- 默认 size=4K, 与 2K 同价, pro 模型失败会自动 fallback 到 2K (扣两次费)
+- 想完全跳过 4K 尝试: 显式 --size 2K
+- ref 图必须 < 10 MB
+- 失败也扣费, 禁止盲重试
+- 用桥接 toml 时把 auth_style 改成 "bearer", 把 base_url 改成桥接的网关地址
+"""

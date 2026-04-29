@@ -146,7 +146,7 @@ done
 
 if (( configured == 0 )); then
     warn "没有任何 provider 配置完整"
-    warn "skill 启动时会再次提醒, 也支持让 AI 帮你加 (危险操作, 详见 AGENT.md)"
+    warn "skill 启动时会启动首跑向导询问你怎么配 (详见 AGENT.md §0)"
 fi
 if (( ${#unconfigured[@]} > 0 )); then
     warn "未配置完整的 provider:"
@@ -157,14 +157,15 @@ echo ""
 # ---------- step 5: 后续指引 ----------
 bold "5. 接下来你需要做"
 echo ""
-info "a) 至少给一个 provider 填齐 [auth] 下三个字段:"
-info "     vim $GLOBAL_LIB/providers/nanobanana.toml"
-info "     # api_key / base_url / docs_url 三项都要填上"
+info "a) 给默认 provider 填 api_key (其余字段已预填好官方值):"
+info "     vim $GLOBAL_LIB/providers/google.toml"
+info "     # 去 https://aistudio.google.com/app/apikey 申请 Gemini API key"
+info "     # 推荐自己填; 让 AI agent 帮填属于风险操作 (key 会进 agent 上下文)"
 info ""
-info "b) 想加其他渠道 (gpt-image-2 / Replicate / 自建网关 / 任何 OpenAI-compatible):"
-info "     方案 A - 自己加: 拷 docs/provider-examples/*.toml.example 到 $GLOBAL_LIB/providers/"
-info "     方案 B - 让 AI 加: 在 AI CLI 里说 '帮我加 <provider>'"
-info "             (危险操作: 准备好 api_key + base_url + 模型清单 + 官方文档链接)"
+info "b) 想接入第三方桥接 (任何 OpenAI-compatible 或 Gemini-shape 网关):"
+info "     方案 A - 自己加: cp google.toml google-bridge-x.toml, 改 base_url + auth_style + key"
+info "     方案 B - 让 AI 加: 准备好 api_key + base_url + 文档链接 告诉 agent"
+info "             (有风险: agent 会经手你的 key 字符串)"
 info ""
 info "c) 在 AI CLI 里调用 skill:"
 info "     Claude Code:  /ppt-anything 做一套 PPT 讲 <主题>"

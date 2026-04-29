@@ -2,7 +2,7 @@
 
 | 工具 | 用途 |
 |---|---|
-| `generate-image.py` | 生图客户端。支持 nanobanana / seedream / xais 三个 provider。**从 `~/.anything-ppt/providers/<name>.toml` 读 api_key + base_url**。 |
+| `generate-image.py` | 生图客户端。支持 google (默认, 官方 Gemini) / nanobanana (第三方 Gemini 桥接) / seedream / xais 四个 provider。**从 `~/.anything-ppt/providers/<name>.toml` 读 api_key + base_url + auth_style**。 |
 | `build-html-ppt-external.py` | 把 PNG 序列压成 WebP 外链 HTML (默认, 推荐)。HTML ~3KB + 图片几 MB. |
 | `build-html-ppt.py` | 把 PNG 序列 base64 嵌入单文件 HTML (备用, 文件大但便于分享). |
 
@@ -20,7 +20,8 @@ env -> provider 映射:
 
 | 环境变量 | provider toml 文件 |
 |---|---|
-| `NANOBANANA_API_KEY` | `nanobanana.toml` |
+| `GOOGLE_API_KEY` | `google.toml` |
+| `NANOBANANA_API_KEY` | `nanobanana.toml`  (legacy alias for any third-party Gemini bridge) |
 | `ARK_API_KEY` | `seedream.toml` |
 | `XAIS_API_KEY` | `xais.toml` |
 
@@ -29,12 +30,12 @@ env -> provider 映射:
 ### 使用
 
 ```bash
-# nanobanana pro 4K, 16:9, 默认
+# google pro 4K, 16:9 (默认 provider)
 ~/.claude/skills/ppt-anything/tools/generate-image.py "夕阳下的金门大桥, 油画风格"
 
 # 指定模型 + 比例 + 输出
 cat /tmp/my_prompt.txt | ~/.claude/skills/ppt-anything/tools/generate-image.py \
-  --provider nanobanana \
+  --provider google \
   -m gemini-3-pro-image-preview \
   --size 4K \
   -r 16:9 \
@@ -53,9 +54,10 @@ cat /tmp/my_prompt.txt | ~/.claude/skills/ppt-anything/tools/generate-image.py \
 
 ### 注意
 
-- 147ai (nanobanana) **失败也扣费**, 禁止盲重试. 脚本只对 4K -> 2K 做一次 fallback (pro 模型).
-- gpt-image-2 在 147ai 桥接下偶尔返回 `finishReason=STOP` + 空 parts (provider 侧不稳). 出现时停下, 别盲重试.
+- Gemini-shape providers (google / nanobanana) **失败也扣费**, 禁止盲重试. 脚本只对 4K -> 2K 做一次 fallback (pro 模型).
+- gpt-image-2 在某些第三方桥接下偶尔返回 `finishReason=STOP` + 空 parts (provider 侧不稳). 出现时停下, 别盲重试.
 - 默认输出目录是 `~/Pictures/<provider>/`. 用 `-o` 指定其他目录.
+- 默认 provider 是 `google`. 想用第三方桥接, `cp google.toml my-bridge.toml`, 改 `base_url` + `auth_style="bearer"` + `api_key`.
 
 ---
 

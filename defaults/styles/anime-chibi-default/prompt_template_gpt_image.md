@@ -1,7 +1,9 @@
 # Prompt template — gpt-image-2 variant
 
-**Use this file when generating with `-m gpt-image-2` (147ai / nanobanana provider).**
-For seedream / xais / gemini-3-pro-image-preview, use the main `prompt_template.md` instead.
+**Use this file when generating with `-m gpt-image-2` (any third-party bridge that
+exposes the OpenAI-family `gpt-image-2` model on the Gemini-shape endpoint).**
+For seedream / xais / Gemini Image (gemini-3-pro-image-preview etc), use the main
+`prompt_template.md` instead.
 
 ---
 
