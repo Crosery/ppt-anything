@@ -2,7 +2,7 @@
 """Generate images via Google Gemini Image API, Seedream 5.0 (Ark), a generic
 Gemini-shape bridge, or a generic OpenAI-image-compatible bridge.
 
-Reads credentials from `~/.anything-ppt/providers/<provider>.toml` first (the
+Reads credentials from `~/.ppt-anything/providers/<provider>.toml` first (the
 canonical store), falling back to `.env` in this script's directory and finally
 process env. Calls the selected provider, saves the PNG locally, and previews
 inline with `kitten icat` when running in a kitty terminal.
@@ -69,7 +69,7 @@ ARK_RATIO_TO_SIZE = {
 }
 
 # --- Xais (generic OpenAI-image bridge) --------------------------------------
-# No hardcoded base_url — must come from ~/.anything-ppt/providers/xais.toml.
+# No hardcoded base_url — must come from ~/.ppt-anything/providers/xais.toml.
 XAIS_DEFAULT_MODEL = "Nano_Banana_Pro_2K_0"
 
 # --- Gemini-shape providers (google, nanobanana) -----------------------------
@@ -117,9 +117,9 @@ QINIU_CHECK_API = "/vadd/facechange/mv/qiniu/check"
 QINIU_DIRECTORY = "seedream"
 
 
-# --- credentials: ~/.anything-ppt/providers/*.toml -> .env -> env -------------
+# --- credentials: ~/.ppt-anything/providers/*.toml -> .env -> env -------------
 
-# Maps env var name -> provider toml stem in ~/.anything-ppt/providers/.
+# Maps env var name -> provider toml stem in ~/.ppt-anything/providers/.
 # Lookup order: 1) toml [auth].api_key  2) ~/.claude/skills/.../.env (legacy)
 #               3) os.environ
 ENV_TO_PROVIDER = {
@@ -129,11 +129,11 @@ ENV_TO_PROVIDER = {
     "XAIS_API_KEY":       "xais",
 }
 
-PROVIDER_LIB_DIR = Path.home() / ".anything-ppt" / "providers"
+PROVIDER_LIB_DIR = Path.home() / ".ppt-anything" / "providers"
 
 
 def _toml_field(provider: str, field: str) -> str:
-    """Read [auth].<field> from ~/.anything-ppt/providers/<provider>.toml.
+    """Read [auth].<field> from ~/.ppt-anything/providers/<provider>.toml.
     Returns '' if file missing, tomllib unavailable, or value is placeholder."""
     cfg = PROVIDER_LIB_DIR / f"{provider}.toml"
     if not cfg.exists():
@@ -167,7 +167,7 @@ def _load_dotenv() -> None:
 
 
 def require_key(name: str) -> str:
-    # 1) ~/.anything-ppt/providers/<provider>.toml [auth].api_key (preferred)
+    # 1) ~/.ppt-anything/providers/<provider>.toml [auth].api_key (preferred)
     provider = ENV_TO_PROVIDER.get(name)
     if provider:
         val = _toml_field(provider, "api_key")
@@ -180,7 +180,7 @@ def require_key(name: str) -> str:
         return key
     sys.exit(
         f"error: {name} not configured.\n"
-        f"  Preferred: edit ~/.anything-ppt/providers/{provider or '<provider>'}.toml\n"
+        f"  Preferred: edit ~/.ppt-anything/providers/{provider or '<provider>'}.toml\n"
         f"             and set [auth].api_key + [auth].base_url + [auth].docs_url.\n"
         f"  Legacy:   export {name}=... in env or add to {SCRIPT_DIR / '.env'}."
     )
@@ -199,7 +199,7 @@ def resolve_base_url(provider: str, default: str = "") -> str:
         return default
     sys.exit(
         f"error: provider {provider!r} has no base_url configured.\n"
-        f"  Edit ~/.anything-ppt/providers/{provider}.toml and set "
+        f"  Edit ~/.ppt-anything/providers/{provider}.toml and set "
         f"[auth].base_url to the API gateway URL."
     )
 
@@ -615,7 +615,7 @@ def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser(
         description="Generate an image via Google Gemini (default), Seedream 5.0 (Ark), "
                     "or any third-party Gemini- / OpenAI-image-compatible bridge configured "
-                    "in ~/.anything-ppt/providers/<name>.toml.",
+                    "in ~/.ppt-anything/providers/<name>.toml.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Examples:\n"

@@ -216,7 +216,7 @@ Layout-specific slots (`LEFT_BANNER_MAIN`, `HERO_ILLUSTRATION`, `NODE_1_SCENE`, 
 
 **Strategy**: the image model already knows the character from its training data. Invoke its memory with the name + source; don't reconstruct the character from a list of features — that fights the model's own knowledge and produces "a random anime girl that vaguely matches", not "that character".
 
-For each character in the slide, grab the **one-liner** from `~/.anything-ppt/characters/<slug>/<slug>.md` and fill in `<POSITION>`, `<POSE>`, `<EXPRESSION>`. The `preserving ...` tail already covers the 2–3 signature details the model flattens during chibi — don't re-describe the rest of the appearance.
+For each character in the slide, grab the **one-liner** from `~/.ppt-anything/characters/<slug>/<slug>.md` and fill in `<POSITION>`, `<POSE>`, `<EXPRESSION>`. The `preserving ...` tail already covers the 2–3 signature details the model flattens during chibi — don't re-describe the rest of the appearance.
 
 Format:
 
@@ -255,8 +255,8 @@ cat /tmp/<deck>_s1_prompt.txt | \
     -r 16:9 \
     [--size 3k] \
     -n <deck_slug>_s1 \
-    --ref ~/.anything-ppt/characters/<slug_a>/<slug_a>.<ext> \
-    [--ref ~/.anything-ppt/characters/<slug_b>/<slug_b>.<ext>] \
+    --ref ~/.ppt-anything/characters/<slug_a>/<slug_a>.<ext> \
+    [--ref ~/.ppt-anything/characters/<slug_b>/<slug_b>.<ext>] \
     --no-preview
 
 # Slide 2+ — anchor to BOTH character refs AND previous slide
@@ -265,8 +265,8 @@ cat /tmp/<deck>_sN_prompt.txt | \
     -r 16:9 \
     [--size 3k] \
     -n <deck_slug>_sN \
-    --ref ~/.anything-ppt/characters/<slug_a>/<slug_a>.<ext> \
-    [--ref ~/.anything-ppt/characters/<slug_b>/<slug_b>.<ext>] \
+    --ref ~/.ppt-anything/characters/<slug_a>/<slug_a>.<ext> \
+    [--ref ~/.ppt-anything/characters/<slug_b>/<slug_b>.<ext>] \
     --ref <absolute path to previous slide PNG> \
     --no-preview
 ```

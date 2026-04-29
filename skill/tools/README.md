@@ -2,7 +2,7 @@
 
 | 工具 | 用途 |
 |---|---|
-| `generate-image.py` | 生图客户端。支持 google (默认, 官方 Gemini) / nanobanana (第三方 Gemini 桥接) / seedream / xais 四个 provider。**从 `~/.anything-ppt/providers/<name>.toml` 读 api_key + base_url + auth_style**。 |
+| `generate-image.py` | 生图客户端。支持 google (默认, 官方 Gemini) / nanobanana (第三方 Gemini 桥接) / seedream / xais 四个 provider。**从 `~/.ppt-anything/providers/<name>.toml` 读 api_key + base_url + auth_style**。 |
 | `build-html-ppt-external.py` | 把 PNG 序列压成 WebP 外链 HTML (默认, 推荐)。HTML ~3KB + 图片几 MB. |
 | `build-html-ppt.py` | 把 PNG 序列 base64 嵌入单文件 HTML (备用, 文件大但便于分享). |
 
@@ -12,7 +12,7 @@
 
 ### 配置来源 (按优先级)
 
-1. **`~/.anything-ppt/providers/<provider>.toml`** 的 `[auth].api_key` 和 `[auth].base_url`  ← 默认走这里
+1. **`~/.ppt-anything/providers/<provider>.toml`** 的 `[auth].api_key` 和 `[auth].base_url`  ← 默认走这里
 2. `~/.claude/skills/ppt-anything/tools/.env`  ← 兼容老用户的 fallback (没有 .env 就跳过)
 3. `os.environ` 里的环境变量 (NANOBANANA_API_KEY / ARK_API_KEY / XAIS_API_KEY)
 
@@ -67,7 +67,7 @@ cat /tmp/my_prompt.txt | ~/.claude/skills/ppt-anything/tools/generate-image.py \
 
 ```bash
 ~/.claude/skills/ppt-anything/tools/build-html-ppt-external.py \
-  --dir ~/.anything-ppt/demo/<my-deck>/ \
+  --dir ~/.ppt-anything/demo/<my-deck>/ \
   --pattern '<slug>_s*.png' \
   -t '<title>'
 ```

@@ -1,7 +1,7 @@
 # 不追踪用户全局库与本地敏感配置
-# 注: ~/.anything-ppt/ 是用户 home 下的目录, git 不展开 ~ 也不会扫到 home。
-# 下面 .anything-ppt/ 是双保险, 如果有人把全局库 symlink 进 repo 不会被追踪。
-.anything-ppt/
+# 注: ~/.ppt-anything/ 是用户 home 下的目录, git 不展开 ~ 也不会扫到 home。
+# 下面 .ppt-anything/ 是双保险, 如果有人把全局库 symlink 进 repo 不会被追踪。
+.ppt-anything/
 *.env
 .env
 .env.local
@@ -27,5 +27,5 @@ __pycache__/
 *.pyc
 *.pyo
 
-# 不追踪 demo 输出（demo 应该在 ~/.anything-ppt/demo 下）
+# 不追踪 demo 输出（demo 应该在 ~/.ppt-anything/demo 下）
 /demo/

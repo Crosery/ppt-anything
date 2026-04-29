@@ -26,7 +26,7 @@ SD chibi 2.5 头身 anime 角色 + 手绘水彩质感 + 干净的 pastel infogra
 | `prompt_template_gpt_image.md` | gpt-image-1 专用 prompt 模板 (海外通路, M2 启用) |
 | `outline_template.md` | outline 思考脚手架 (gate 用户审之前先填这个) |
 
-`install.sh` 会把整包拷到 `~/.anything-ppt/styles/anime-chibi-default/`，AI 直接从全局库读，不依赖 skill 仓库内任何文件。
+`install.sh` 会把整包拷到 `~/.ppt-anything/styles/anime-chibi-default/`，AI 直接从全局库读，不依赖 skill 仓库内任何文件。
 
 ## 关键铁律 (摘自 style_guide.md)
 
@@ -38,7 +38,7 @@ SD chibi 2.5 头身 anime 角色 + 手绘水彩质感 + 干净的 pastel infogra
 
 ## 怎么换风格 / 加新 style pack
 
-不要改 `anime-chibi-default`。在 `~/.anything-ppt/styles/<你的风格名>/` 新建目录，至少包含:
+不要改 `anime-chibi-default`。在 `~/.ppt-anything/styles/<你的风格名>/` 新建目录，至少包含:
 
 ```
 styles/<你的风格名>/
@@ -47,4 +47,4 @@ styles/<你的风格名>/
 └── prompt_template.md  # 带 <<SLOT>> 的 prompt 模板
 ```
 
-AI 启动 skill 时会列出 `~/.anything-ppt/styles/` 下所有 manifest，问你用哪个。
+AI 启动 skill 时会列出 `~/.ppt-anything/styles/` 下所有 manifest，问你用哪个。

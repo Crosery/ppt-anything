@@ -4,14 +4,14 @@
 # 安装动作 (按顺序):
 #   1. 全量覆盖更新 ~/.claude/skills/ppt-anything/ <- .claude/skills/ppt-anything/
 #      (cp -R, 不再用软链。已存在则先备份到 .bak.<timestamp>/)
-#   2. defaults/* -> ~/.anything-ppt/* (仅在目标不存在时拷贝, 不覆盖用户数据)
+#   2. defaults/* -> ~/.ppt-anything/* (仅在目标不存在时拷贝, 不覆盖用户数据)
 #   3. 检查 cwebp + tomllib (Python 3.11+)
-#   4. 扫 ~/.anything-ppt/providers/ 报告未配置的 provider
+#   4. 扫 ~/.ppt-anything/providers/ 报告未配置的 provider
 
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-GLOBAL_LIB="$HOME/.anything-ppt"
+GLOBAL_LIB="$HOME/.ppt-anything"
 CLAUDE_SKILLS="$HOME/.claude/skills"
 SKILL_NAME="ppt-anything"
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
@@ -29,6 +29,24 @@ info "项目根目录:   $PROJECT_ROOT"
 info "全局库目录:   $GLOBAL_LIB"
 info "Claude skill: $CLAUDE_SKILLS/$SKILL_NAME"
 echo ""
+
+# ---------- step 0: 旧路径迁移 (~/.anything-ppt -> ~/.ppt-anything) ----------
+# 必须在 step 1 之前执行 — step 1 的备份目录在 $GLOBAL_LIB 内会预创建新路径
+LEGACY_LIB="$HOME/.anything-ppt"
+if [[ -d "$LEGACY_LIB" && ! -L "$LEGACY_LIB" ]]; then
+    bold "0. 检测到旧路径 $LEGACY_LIB (项目重命名前的全局库位置)"
+    if [[ -e "$GLOBAL_LIB" ]]; then
+        warn "新路径 $GLOBAL_LIB 也已存在 — 不会自动合并"
+        warn "你需要自己处理。常见做法 (按顺序跑):"
+        warn "  rsync -av $LEGACY_LIB/ $GLOBAL_LIB/   # 把旧的合到新的"
+        warn "  rm -rf $LEGACY_LIB                    # 检查无遗留再删旧"
+    else
+        info "迁移到新路径 $GLOBAL_LIB"
+        mv "$LEGACY_LIB" "$GLOBAL_LIB"
+        ok "已迁移. 旧路径不复存在"
+    fi
+    echo ""
+fi
 
 # ---------- step 1: skill 全量更新 (cp -R, 不软链) ----------
 bold "1. 全量更新 Claude Code skill (cp -R 覆盖)"

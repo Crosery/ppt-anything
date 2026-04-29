@@ -58,7 +58,7 @@
 
 ## 核心特性
 
-- **三库可扩展** — `characters` / `styles` / `providers`，全部住在 `~/.anything-ppt/`
+- **三库可扩展** — `characters` / `styles` / `providers`，全部住在 `~/.ppt-anything/`
 - **Outline gate** — 任何生图前必须先把故事大纲拿给你过，杜绝烧钱试错
 - **Reference image 纪律** — 每张 slide 都用原始角色图 + 上一张 slide 双重 anchor，主角不漂
 - **Layout × Beat 方法论** — A-H 布局 + scene-ify 自定义场景，按情绪选版式不靠模板
@@ -80,7 +80,7 @@ bash scripts/install.sh
 
 `install.sh` 做的事：
 - `cp -R skill/` → `~/.claude/skills/ppt-anything/`（已存在则备份到 `.bak.<时间戳>/`）
-- 把 `defaults/` 拷到 `~/.anything-ppt/`（首次安装，已存在则跳过）
+- 把 `defaults/` 拷到 `~/.ppt-anything/`（首次安装，已存在则跳过）
 - 检查 `cwebp` + Python 3.11+ tomllib
 
 ### 2. 配一个生图 provider
@@ -90,7 +90,7 @@ bash scripts/install.sh
 ```bash
 # 1) 去 https://aistudio.google.com/app/apikey 申请一个 Gemini API key
 # 2) 自己用编辑器粘进去（强烈推荐，AI agent 永远不经手 key）
-vim ~/.anything-ppt/providers/google.toml
+vim ~/.ppt-anything/providers/google.toml
 ```
 
 **想接第三方桥接**（任何 Gemini-shape 或 OpenAI-image-compatible 网关）：
@@ -116,10 +116,10 @@ vim ~/.anything-ppt/providers/google.toml
 
 ## 库系统
 
-所有可扩展的资产都住在 **`~/.anything-ppt/`**（不在项目仓库里），方便跨 CLI、跨项目复用：
+所有可扩展的资产都住在 **`~/.ppt-anything/`**（不在项目仓库里），方便跨 CLI、跨项目复用：
 
 ```
-~/.anything-ppt/
+~/.ppt-anything/
 ├── characters/    人物库  (默认: 橙橙 chengcheng + 蓝蓝 lanlan, 「搭子」AI OC 双核 mascot)
 ├── styles/        风格模板库  (默认: anime-chibi-default 萌系日漫水彩)
 ├── providers/     生图 API 库  (默认只装 google.toml 指向官方 Gemini API; 其他渠道靠扩展)
@@ -142,7 +142,7 @@ ppt-anything/
 ├── CLAUDE.md / GEMINI.md / ...  桩文件，指向 AGENT.md
 ├── skill/                       skill 本体 (SKILL.md + tools/)
 │                                被 install.sh cp -R 到 ~/.claude/skills/ppt-anything/
-├── defaults/                    首次安装时拷到 ~/.anything-ppt/ 的默认库
+├── defaults/                    首次安装时拷到 ~/.ppt-anything/ 的默认库
 │   ├── characters/chengcheng/   橙橙 (搭子双核之「冲」)
 │   ├── characters/lanlan/       蓝蓝 (搭子双核之「稳」)
 │   ├── styles/anime-chibi-default/

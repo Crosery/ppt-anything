@@ -1,9 +1,9 @@
 # 库管理指南
 
-`ppt-anything` 的所有可扩展资产都住在 `~/.anything-ppt/`，分三个库 + 一个归档目录:
+`ppt-anything` 的所有可扩展资产都住在 `~/.ppt-anything/`，分三个库 + 一个归档目录:
 
 ```
-~/.anything-ppt/
+~/.ppt-anything/
 ├── characters/    人物库
 ├── styles/        风格模板库
 ├── providers/     生图 API 库
@@ -41,20 +41,20 @@ characters/<slug>/
 #### A. 用户主动加
 
 ```bash
-mkdir ~/.anything-ppt/characters/<slug>
+mkdir ~/.ppt-anything/characters/<slug>
 # 把参考图放进去
-cp ~/Downloads/my_char.png ~/.anything-ppt/characters/<slug>/<slug>.png
+cp ~/Downloads/my_char.png ~/.ppt-anything/characters/<slug>/<slug>.png
 # 写 profile (照 chengcheng/chengcheng.md 模板)
-vim ~/.anything-ppt/characters/<slug>/<slug>.md
+vim ~/.ppt-anything/characters/<slug>/<slug>.md
 ```
 
 #### B. AI 自动加 (用户口头要求时)
 
 用户说"用 Pikachu 当人物"，AI 工作流:
 
-1. 检查 `~/.anything-ppt/characters/pikachu/` 是否存在 → 不存在
+1. 检查 `~/.ppt-anything/characters/pikachu/` 是否存在 → 不存在
 2. 用 WebSearch 找 Pikachu 官方图 (确认是哪个 era 的版本)
-3. `curl` 下载到 `~/.anything-ppt/characters/pikachu/pikachu.png`
+3. `curl` 下载到 `~/.ppt-anything/characters/pikachu/pikachu.png`
 4. **Read 这张图** (视觉确认特征)
 5. 按 `chengcheng/chengcheng.md` 模板写 `pikachu/pikachu.md`，重点描述视觉特征 (不靠模型记忆) + 显式 prompt 锚点 + drift risk 否定项
 6. 向用户确认: "找到了 Pikachu，用 2024 redesign 还是经典版？" 等回答
@@ -62,8 +62,8 @@ vim ~/.anything-ppt/characters/<slug>/<slug>.md
 
 ### 修改 / 删除
 
-- 改默认 `chengcheng` / `lanlan`: 直接编辑 `~/.anything-ppt/characters/<slug>/` 下的文件 (项目自带的副本仍在 `defaults/`，下次重装可恢复)
-- 删: `rm -rf ~/.anything-ppt/characters/<slug>/`，下次 install.sh 不会自动恢复非默认条目 (默认的橙橙/蓝蓝若被删，重跑 install.sh 会按"目标不存在则拷贝"恢复)
+- 改默认 `chengcheng` / `lanlan`: 直接编辑 `~/.ppt-anything/characters/<slug>/` 下的文件 (项目自带的副本仍在 `defaults/`，下次重装可恢复)
+- 删: `rm -rf ~/.ppt-anything/characters/<slug>/`，下次 install.sh 不会自动恢复非默认条目 (默认的橙橙/蓝蓝若被删，重跑 install.sh 会按"目标不存在则拷贝"恢复)
 
 ---
 
@@ -92,8 +92,8 @@ styles/<slug>/
 #### A. 用户主动加新风格
 
 ```bash
-mkdir ~/.anything-ppt/styles/<新风格名>
-cd ~/.anything-ppt/styles/<新风格名>
+mkdir ~/.ppt-anything/styles/<新风格名>
+cd ~/.ppt-anything/styles/<新风格名>
 # 写三份文件
 vim manifest.md          # 抄 anime-chibi-default/manifest.md 模板
 vim style_guide.md       # 风格规范
@@ -104,7 +104,7 @@ vim prompt_template.md   # 带 <<SLOT>> 的 prompt 模板
 
 用户说"我想要一个赛博朋克风格"，AI 工作流:
 
-1. 检查 `~/.anything-ppt/styles/cyberpunk/` 是否存在 → 不存在
+1. 检查 `~/.ppt-anything/styles/cyberpunk/` 是否存在 → 不存在
 2. 问用户: "给我 1-3 张参考图 (路径或 URL)，或描述关键词"
 3. 收到参考图 → Read (视觉确认风格特征)
 4. 按 `anime-chibi-default` 结构生成新 style pack:
@@ -156,7 +156,7 @@ vim prompt_template.md   # 带 <<SLOT>> 的 prompt 模板
 #### A. 用户主动加新 provider
 
 ```bash
-cd ~/.anything-ppt/providers/
+cd ~/.ppt-anything/providers/
 # 抄一份现有 toml 当模板
 cp nanobanana.toml.example my-new-provider.toml
 vim my-new-provider.toml
@@ -175,15 +175,15 @@ vim my-new-provider.toml
    - **官方文档链接** (AI 会用 WebFetch 去读, 确认 API 形状)
    - **模型清单** (默认模型 + 可选模型 ID)
 3. WebFetch 读文档, 确认 POST/GET / body 格式 / 鉴权方式
-4. 参照 `docs/provider-examples/gpt-image-2.toml.example` schema, 写 `~/.anything-ppt/providers/<name>.toml`
+4. 参照 `docs/provider-examples/gpt-image-2.toml.example` schema, 写 `~/.ppt-anything/providers/<name>.toml`
 5. **永不替用户生成 key, 永不替用户保管 key**
 6. 写完后用 `head -20` 给用户看一眼内容
-7. 提醒用户 `chmod 600 ~/.anything-ppt/providers/<name>.toml`
+7. 提醒用户 `chmod 600 ~/.ppt-anything/providers/<name>.toml`
 8. 当前 generate-image skill 集成是 M2 路线图。在那之前, AI 会按 [how_to_use].invoke 模板生成 curl 调用作为 fallback
 
 ### AI 怎么选 provider (启动自检 + 默认值声明)
 
-skill 启动时强制扫 `~/.anything-ppt/providers/*.toml`:
+skill 启动时强制扫 `~/.ppt-anything/providers/*.toml`:
 
 1. **检查每个 .toml 的 `[auth].api_key`** — 空 / `<...>` / `PLACEHOLDER` 视为未配置
 2. **零 provider 配好 key** → 立即停下, 给用户两条路 (自己 vim 填 / 让 AI 帮加, 后者带危险警告)
@@ -199,7 +199,7 @@ skill 启动时强制扫 `~/.anything-ppt/providers/*.toml`:
 每次成功生成一套 PPT，AI 会自动把成品写到:
 
 ```
-~/.anything-ppt/demo/YYYY-MM-DD-<slug>/
+~/.ppt-anything/demo/YYYY-MM-DD-<slug>/
 ├── outline.md          用户审过的 outline
 ├── slides/             所有原始生图 (PNG)
 ├── deck.html           最终 HTML 交付物
@@ -215,16 +215,16 @@ skill 启动时强制扫 `~/.anything-ppt/providers/*.toml`:
 可以浏览历史:
 
 ```bash
-ls -lt ~/.anything-ppt/demo/ | head
-open ~/.anything-ppt/demo/2026-04-29-rl-quickstart/deck.html
+ls -lt ~/.ppt-anything/demo/ | head
+open ~/.ppt-anything/demo/2026-04-29-rl-quickstart/deck.html
 ```
 
 ---
 
 ## 备份建议
 
-`~/.anything-ppt/` 整个目录就是你的所有可扩展资产 (人物/风格/配置/历史)。
+`~/.ppt-anything/` 整个目录就是你的所有可扩展资产 (人物/风格/配置/历史)。
 建议:
 
 - 加进个人 dotfiles 仓库 (注意 providers/*.toml 含 api_key，需 .gitignore 或加密)
-- 或者定期 tar 备份: `tar -czf anything-ppt-$(date +%F).tar.gz -C ~ .anything-ppt`
+- 或者定期 tar 备份: `tar -czf anything-ppt-$(date +%F).tar.gz -C ~ .ppt-anything`

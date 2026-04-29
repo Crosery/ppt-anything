@@ -39,7 +39,7 @@ What changes is *how* you ask the model for it.
    training is weaker than seedream's. "Mahiro Oyama from ONIMAI" is mostly noise; "a chibi
    girl with very long silver-pink gradient hair, one large springy ahoge, cute sailor-style
    uniform with red ribbon" actually steers the output. The ref image carries the rest.
-3. **One ref only.** Pass the original `~/.anything-ppt/characters/<slug>/<slug>.<ext>` and stop. Adding the previous
+3. **One ref only.** Pass the original `~/.ppt-anything/characters/<slug>/<slug>.<ext>` and stop. Adding the previous
    slide as a second ref makes gpt-image-2 average the two and drift toward neither. If
    continuity feels off between slides, fix the *prompt's style sentence*, don't pile on refs.
 4. **State the style once.** A single sentence near the top: "Render this as a soft-watercolor
@@ -107,7 +107,7 @@ later sections in mega-prompts.
 
 ## Character description (the load-bearing rule)
 
-For gpt-image-2, the character one-liner from `~/.anything-ppt/characters/<slug>/<slug>.md` is **not enough**. Rewrite
+For gpt-image-2, the character one-liner from `~/.ppt-anything/characters/<slug>/<slug>.md` is **not enough**. Rewrite
 each character into 2–3 sentences that describe what the model needs to *paint*:
 
 - Hair (color + length + signature shape — ahoge, twin tails, bangs, etc.)
@@ -227,7 +227,7 @@ cat /tmp/<deck>_sN_prompt.txt | \
     -m gpt-image-2 \
     -r 16:9 \
     -n <deck_slug>_sN \
-    --ref ~/.anything-ppt/characters/<slug>/<slug>.<ext> \
+    --ref ~/.ppt-anything/characters/<slug>/<slug>.<ext> \
     --no-preview
 ```
 
@@ -299,7 +299,7 @@ cat /tmp/deepseek_intro_s1_prompt.txt | \
     -m gpt-image-2 \
     -r 16:9 \
     -n deepseek_intro_s1 \
-    --ref ~/.anything-ppt/characters/chengcheng/chengcheng.png \
+    --ref ~/.ppt-anything/characters/chengcheng/chengcheng.png \
     --no-preview
 ```
 
@@ -362,7 +362,7 @@ cat /tmp/deepseek_intro_s3_prompt.txt | \
     -m gpt-image-2 \
     -r 16:9 \
     -n deepseek_intro_s3 \
-    --ref ~/.anything-ppt/characters/chengcheng/chengcheng.png \
+    --ref ~/.ppt-anything/characters/chengcheng/chengcheng.png \
     --no-preview
 ```
 

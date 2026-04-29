@@ -1,4 +1,4 @@
-# Character Library — `~/.anything-ppt/characters/`
+# Character Library — `~/.ppt-anything/characters/`
 
 Each character used by ppt-anything lives here as a **directory** containing one profile `.md` AND one local reference image (jpg/png/webp).
 
@@ -7,7 +7,7 @@ Each character used by ppt-anything lives here as a **directory** containing one
 ## Layout
 
 ```
-~/.anything-ppt/characters/
+~/.ppt-anything/characters/
   <slug>/
     <slug>.md           profile (frontmatter + visual features + prompt anchors)
     <slug>.<ext>        the actual reference image — jpg / png / webp
@@ -35,7 +35,7 @@ source_work: <Anime / manga / game / OC / ...>
 role_archetype: <mentor | protagonist | novice | mascot | ...>
 source_urls:
   - <wiki / fandom URL or empty if OC>
-reference_image: characters/<slug>/<slug>.<ext>   # REQUIRED, relative to ~/.anything-ppt/
+reference_image: characters/<slug>/<slug>.<ext>   # REQUIRED, relative to ~/.ppt-anything/
 image_provenance: <web | user-provided | project-default>
 verified_date: <YYYY-MM-DD>
 version_note: |
@@ -46,12 +46,12 @@ version_note: |
 ## Adding a new character (3 branches)
 
 ### Branch A — already in library
-Check `~/.anything-ppt/characters/<slug>/`. If profile + image both exist, `Read` both (vision input mandatory). Done.
+Check `~/.ppt-anything/characters/<slug>/`. If profile + image both exist, `Read` both (vision input mandatory). Done.
 
 ### Branch B — public character, not yet here
-`WebSearch` the canonical image, `curl` it to `~/.anything-ppt/characters/<slug>/<slug>.<ext>`, **`Read` it with vision**, then write the profile from WHAT YOU SAW (not text summaries). If multiple canonical versions exist (old vs redesign), confirm with the user and record in `version_note`.
+`WebSearch` the canonical image, `curl` it to `~/.ppt-anything/characters/<slug>/<slug>.<ext>`, **`Read` it with vision**, then write the profile from WHAT YOU SAW (not text summaries). If multiple canonical versions exist (old vs redesign), confirm with the user and record in `version_note`.
 
 ### Branch C — user-provided image (OC / obscure)
-Ask the user for the image path/URL. Copy into `~/.anything-ppt/characters/<slug>/<slug>.<ext>` (never leave in `/tmp`). `Read` it. Write profile with `image_provenance: user-provided`, leaning on explicit feature description (the model has no latent memory of OCs).
+Ask the user for the image path/URL. Copy into `~/.ppt-anything/characters/<slug>/<slug>.<ext>` (never leave in `/tmp`). `Read` it. Write profile with `image_provenance: user-provided`, leaning on explicit feature description (the model has no latent memory of OCs).
 
 **Skipping the Read step is the #1 source of character drift. Do not skip it even if the name feels famous.**

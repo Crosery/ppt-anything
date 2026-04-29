@@ -13,13 +13,13 @@ bash scripts/install.sh
 | 步骤 | 动作 | 安全性 |
 |---|---|---|
 | 1 | `cp -R skill/` 到 `~/.claude/skills/ppt-anything/` | 已存在则备份到 `.bak.<时间戳>/` 再覆盖 |
-| 2 | 拷贝 `defaults/characters/*` 到 `~/.anything-ppt/characters/`  | 仅在目标不存在时拷贝 |
-| 3 | 拷贝 `defaults/styles/*` 到 `~/.anything-ppt/styles/` | 仅在目标不存在时拷贝 |
-| 4 | 拷贝 `defaults/providers/*.toml.example` 到 `~/.anything-ppt/providers/` | 仅在目标不存在时拷贝 |
+| 2 | 拷贝 `defaults/characters/*` 到 `~/.ppt-anything/characters/`  | 仅在目标不存在时拷贝 |
+| 3 | 拷贝 `defaults/styles/*` 到 `~/.ppt-anything/styles/` | 仅在目标不存在时拷贝 |
+| 4 | 拷贝 `defaults/providers/*.toml.example` 到 `~/.ppt-anything/providers/` | 仅在目标不存在时拷贝 |
 | 5 | 检查 `cwebp` 是否安装 | 仅检查，不自动装 |
 
 **install.sh 不会**:
-- 改你已有的 `~/.anything-ppt/` 数据
+- 改你已有的 `~/.ppt-anything/` 数据
 - 替你写 API key
 - 安装系统级依赖
 - 推任何东西到远端
@@ -38,7 +38,7 @@ bash scripts/install.sh
 `install.sh` 出厂只装 `nanobanana` 一个 provider 模板, `[auth]` 下三个字段全部留空。你必须自己填齐三项才能生图:
 
 ```bash
-vim ~/.anything-ppt/providers/nanobanana.toml
+vim ~/.ppt-anything/providers/nanobanana.toml
 ```
 
 把 `[auth]` 段里这三个字段都改成你申请到的真实值:
@@ -57,10 +57,10 @@ docs_url = "<官方 API 文档地址>"
 ### 方案 A - 自己加 (推荐, 安全)
 
 ```bash
-cp docs/provider-examples/gpt-image-2.toml.example ~/.anything-ppt/providers/gpt-image-2.toml
-vim ~/.anything-ppt/providers/gpt-image-2.toml
+cp docs/provider-examples/gpt-image-2.toml.example ~/.ppt-anything/providers/gpt-image-2.toml
+vim ~/.ppt-anything/providers/gpt-image-2.toml
 # 按 schema 填 api_key / base_url / models / docs_url
-chmod 600 ~/.anything-ppt/providers/gpt-image-2.toml   # 防止旁人偷看
+chmod 600 ~/.ppt-anything/providers/gpt-image-2.toml   # 防止旁人偷看
 ```
 
 ### 方案 B - 让 AI 帮加 (危险操作)
@@ -69,7 +69,7 @@ chmod 600 ~/.anything-ppt/providers/gpt-image-2.toml   # 防止旁人偷看
 
 | 你要给的 | AI 怎么用 |
 |---|---|
-| api_key | 写到 `~/.anything-ppt/providers/<name>.toml` 里, 不上传任何地方 |
+| api_key | 写到 `~/.ppt-anything/providers/<name>.toml` 里, 不上传任何地方 |
 | base_url | 写进 `[auth].base_url`。AI 不替你猜, 必须你提供 |
 | docs_url | 写进 `[auth].docs_url`。AI 会 WebFetch 读它确认请求 schema |
 | 模型清单 | 写进 `[models]` |
@@ -78,7 +78,7 @@ chmod 600 ~/.anything-ppt/providers/gpt-image-2.toml   # 防止旁人偷看
 
 ### 启动自检
 
-skill 每次启动会扫 `~/.anything-ppt/providers/*.toml`, 检查每个 provider 的 `[auth]` 段:
+skill 每次启动会扫 `~/.ppt-anything/providers/*.toml`, 检查每个 provider 的 `[auth]` 段:
 - `api_key` / `base_url` / `docs_url` 任一为空 / `<...>` 占位符 / `PLACEHOLDER` → 该 provider 视为未配置
 - 零 provider 字段全齐 → 拒绝生图, 给你两条路 (自己填 / 让 AI 帮加, 后者带危险警告)
 
@@ -103,7 +103,7 @@ skill 已经被 `install.sh` 软链到 `~/.claude/skills/ppt-anything/`，直接
 rm ~/.claude/skills/ppt-anything
 
 # 想完全清理全局库 (会丢掉你扩展的角色/风格/配置, 谨慎)
-rm -rf ~/.anything-ppt
+rm -rf ~/.ppt-anything
 ```
 
 不会留任何系统服务、cron、登录项。
