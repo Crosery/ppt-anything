@@ -8,6 +8,14 @@
 
 <p>给一个主题，吐回一套连贯、有人物、有审美、能直接讲的插画 PPT。</p>
 
+<p><b>English intro:</b> ppt-anything is an AI story-deck generator that turns one topic into a coherent illustrated presentation with reusable characters, style packs, provider profiles, and an outline approval gate.</p>
+
+<p>
+  <a href="README.md"><b>中文</b></a>
+  &nbsp;|&nbsp;
+  <a href="README_EN.md"><b>English</b></a>
+</p>
+
 <p>
   <a href="#快速开始"><b>快速开始</b></a>
   &nbsp;·&nbsp;
@@ -18,7 +26,7 @@
   <a href="AGENT.md"><b>AGENT 总入口</b></a>
 </p>
 
-<sub>跨 AI CLI · Claude Code / Gemini CLI / Codex CLI / Cursor 通吃 · BYO 生图 key</sub>
+<sub>Cross-AI-CLI skill · Claude Code / Gemini CLI / Codex CLI / Cursor · Bring your own image-generation key</sub>
 
 </div>
 
