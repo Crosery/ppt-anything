@@ -15,6 +15,8 @@
 </p>
 
 <p>
+  <a href="https://crosery.github.io/ppt-anything/"><b>Live Demo</b></a>
+  &nbsp;·&nbsp;
   <a href="#quick-start"><b>Quick start</b></a>
   &nbsp;·&nbsp;
   <a href="#library-system"><b>Library system</b></a>
