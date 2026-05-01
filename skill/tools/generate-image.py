@@ -70,7 +70,7 @@ ARK_RATIO_TO_SIZE = {
 
 # --- Xais (generic OpenAI-image bridge) --------------------------------------
 # No hardcoded base_url — must come from ~/.ppt-anything/providers/xais.toml.
-XAIS_DEFAULT_MODEL = "Nano_Banana_Pro_2K_0"
+XAIS_DEFAULT_MODEL = "gpt-image-2"
 
 # --- Gemini-shape providers (google, nanobanana) -----------------------------
 # google     = Google Gemini Image API official endpoint.
@@ -98,9 +98,56 @@ NANOBANANA_VALID_IMAGE_SIZES = {"1K", "2K", "4K"}
 NANOBANANA_DEFAULT_IMAGE_SIZE = "4K"
 NANOBANANA_FALLBACK_IMAGE_SIZE = "2K"
 
+# --- OpenAI Images API models (gpt-image-2, etc.) via Gemini-shape providers --
+# These models live in NANOBANANA_MODELS for convenience but use a different
+# wire format: POST /v1/images/generations instead of Gemini's generateContent.
+# When detected, the script auto-routes to the OpenAI images path using the
+# same provider's base_url + api_key.
+OPENAI_IMAGE_MODELS: set[str] = set()
+
+OPENAI_IMAGE_SIZES: dict[str, str] = {
+    "1:1":  "1024x1024",
+    "16:9": "1536x1024",
+    "9:16": "1024x1536",
+    "3:2":  "1536x1024",
+    "2:3":  "1024x1536",
+    "4:3":  "1536x1024",
+    "3:4":  "1024x1536",
+    "21:9": "1536x1024",
+    "4:5":  "1024x1536",
+    "5:4":  "1536x1024",
+}
+
 VALID_RATIOS = set(ARK_RATIO_TO_SIZE.keys())
 DEFAULT_RATIO = "16:9"
 DEFAULT_PROVIDER = "google"
+
+# --- User config: ~/.ppt-anything/config.toml overrides defaults ---------------
+USER_CONFIG = Path.home() / ".ppt-anything" / "config.toml"
+_USER_DEFAULT_MODEL: str = ""
+
+def _load_user_config() -> None:
+    global DEFAULT_PROVIDER, _USER_DEFAULT_MODEL
+    if not USER_CONFIG.exists():
+        return
+    try:
+        import tomllib
+    except ImportError:
+        return
+    try:
+        with open(USER_CONFIG, "rb") as f:
+            data = tomllib.load(f)
+    except Exception:
+        return
+    defs = data.get("defaults", {})
+    p = str(defs.get("provider", "")).strip()
+    if p:
+        DEFAULT_PROVIDER = p
+    m = str(defs.get("model", "")).strip()
+    if m:
+        _USER_DEFAULT_MODEL = m
+
+_load_user_config()
 
 # --- Qiniu (company bridge for local-file -> remote URL) ----------------------
 # These are baked-in company defaults; no user config required. Confirmed
@@ -538,6 +585,47 @@ def gemini_generate(provider: str, prompt: str, model: str, ratio: str,
 
 # --- Xais provider ------------------------------------------------------------
 
+def openai_images_generate(provider: str, prompt: str, model: str,
+                           size: str, quality: str,
+                           key: str, timeout: int) -> bytes:
+    """Generate via OpenAI /v1/images/generations endpoint.
+
+    Used for gpt-image-2 and similar models that need the OpenAI images wire
+    format, even when credentials come from a Gemini-shape provider toml.
+    """
+    body: dict = {
+        "model": model,
+        "prompt": prompt,
+        "n": 1,
+        "size": size,
+        "quality": quality,
+    }
+    base = resolve_base_url(provider)
+    url = f"{base}/v1/images/generations"
+    resp = http_post_json(url, body,
+                          headers={**auth_headers(provider, key),
+                                   "User-Agent": "curl/8.4.0"},
+                          timeout=timeout)
+    data = resp.get("data", [])
+    if not data:
+        sys.exit(f"error: empty data from {url}: "
+                 f"{json.dumps(resp, ensure_ascii=False)[:400]}")
+    item = data[0]
+    if "b64_json" in item:
+        return base64.b64decode(item["b64_json"])
+    if "url" in item:
+        return _http("GET", item["url"], timeout=timeout)
+    sys.exit(f"error: no b64_json or url in response: "
+             f"{json.dumps(item, ensure_ascii=False)[:400]}")
+
+
+def _resolve_openai_image_size(ratio: str, user_size: str | None) -> str:
+    """Map --size + --ratio to an OpenAI images API size string (WxH)."""
+    if user_size and "x" in user_size:
+        return user_size
+    return OPENAI_IMAGE_SIZES.get(ratio, "auto")
+
+
 def xais_build_content(prompt: str, ratio: str, ref_url: str | None):
     text = prompt.rstrip()
     if ratio:
@@ -550,21 +638,46 @@ def xais_build_content(prompt: str, ratio: str, ref_url: str | None):
     ]
 
 
+XAIS_RATIO_TO_4K: dict[str, str] = {
+    "1:1":  "2160x2160",
+    "16:9": "3840x2160",
+    "9:16": "2160x3840",
+    "3:2":  "3240x2160",
+    "2:3":  "2160x3240",
+    "4:3":  "2880x2160",
+    "3:4":  "2160x2880",
+    "21:9": "3840x1646",
+    "4:5":  "2160x2700",
+    "5:4":  "2700x2160",
+}
+
+
 def xais_generate(prompt: str, model: str, ratio: str, ref_url: str | None,
-                  key: str, timeout: int) -> str:
-    body = {
+                  key: str, timeout: int, *,
+                  size: str | None = None,
+                  quality: str | None = None,
+                  moderation: str | None = None) -> str:
+    msg_content = xais_build_content(prompt, ratio if not size else "", ref_url)
+    body: dict = {
         "model": model,
-        "messages": [{"role": "user", "content": xais_build_content(prompt, ratio, ref_url)}],
+        "messages": [{"role": "user", "content": msg_content}],
+        "stream": False,
     }
+    if size:
+        body["size"] = size
+    if quality:
+        body["quality"] = quality
+    if moderation:
+        body["moderation"] = moderation
     resp = http_post_json(
         f"{resolve_base_url("xais")}/v1/chat/completions", body,
         headers={"Authorization": f"Bearer {key}", "User-Agent": "curl/8.4.0", "Accept": "*/*"},
         timeout=timeout,
     )
-    content = resp["choices"][0]["message"]["content"]
-    m = re.search(r"!\[[^\]]*\]\(([^)]+)\)", content)
+    resp_content = resp["choices"][0]["message"]["content"]
+    m = re.search(r"!\[[^\]]*\]\(([^)]+)\)", resp_content)
     if not m:
-        sys.exit(f"error: no image URL in Xais response.\nRaw content: {content!r}")
+        sys.exit(f"error: no image URL in Xais response.\nRaw content: {resp_content!r}")
     return m.group(1).replace(r"\u0026", "&")
 
 
@@ -692,14 +805,21 @@ def main() -> None:
         print(f"→ model:    {ARK_MODEL}", file=sys.stderr)
         print(f"→ size:     {effective_size}{tag}", file=sys.stderr)
     elif args.provider in ("google", "nanobanana"):
-        model = args.model or NANOBANANA_DEFAULT_MODEL
+        model = args.model or _USER_DEFAULT_MODEL or NANOBANANA_DEFAULT_MODEL
         if model not in NANOBANANA_MODELS:
             print(f"→ warning:  unknown {args.provider} model {model!r}; "
                   f"known: {sorted(NANOBANANA_MODELS)} — sending anyway",
                   file=sys.stderr)
         print(f"→ model:    {model}", file=sys.stderr)
         print(f"→ ratio:    {args.ratio}", file=sys.stderr)
-        if model in NANOBANANA_PRO_MODELS:
+        if model in OPENAI_IMAGE_MODELS:
+            oai_size = _resolve_openai_image_size(args.ratio, args.size)
+            print(f"→ size:     {oai_size} (OpenAI images endpoint)", file=sys.stderr)
+            print(f"→ quality:  high", file=sys.stderr)
+            if args.ref:
+                print("→ warning:  --ref ignored for OpenAI image models",
+                      file=sys.stderr)
+        elif model in NANOBANANA_PRO_MODELS:
             if args.size is None:
                 print(f"→ size:     {NANOBANANA_DEFAULT_IMAGE_SIZE} (default; "
                       f"auto-fallback to {NANOBANANA_FALLBACK_IMAGE_SIZE} on failure)",
@@ -716,9 +836,16 @@ def main() -> None:
             print(f"→ warning:  --size {args.size} ignored "
                   f"(only pro model accepts imageSize)", file=sys.stderr)
     else:  # xais
-        print(f"→ model:    {args.model or XAIS_DEFAULT_MODEL}", file=sys.stderr)
+        xais_model = args.model or _USER_DEFAULT_MODEL or XAIS_DEFAULT_MODEL
+        print(f"→ model:    {xais_model}", file=sys.stderr)
         print(f"→ ratio:    {args.ratio}", file=sys.stderr)
-        if args.size:
+        if "gpt-image-2" in xais_model:
+            eff_size = args.size if (args.size and "x" in args.size) \
+                else XAIS_RATIO_TO_4K.get(args.ratio, "3840x2160")
+            print(f"→ size:     {eff_size}", file=sys.stderr)
+            print(f"→ quality:  high", file=sys.stderr)
+            print(f"→ moderation: low", file=sys.stderr)
+        elif args.size:
             print("→ warning:  --size ignored on xais provider", file=sys.stderr)
 
     # Refs: seedream/xais want URLs (local -> Qiniu upload); Gemini-shape
@@ -762,23 +889,41 @@ def main() -> None:
     elif args.provider in ("google", "nanobanana"):
         env_var = "GOOGLE_API_KEY" if args.provider == "google" else "NANOBANANA_API_KEY"
         key = require_key(env_var)
-        model = args.model or NANOBANANA_DEFAULT_MODEL
-        requested_size = args.size
-        if requested_size is None and model in NANOBANANA_PRO_MODELS:
-            requested_size = NANOBANANA_DEFAULT_IMAGE_SIZE
-        raw, effective_size = gemini_generate(
-            args.provider, prompt, model, args.ratio, requested_size,
-            ref_inputs, key, args.timeout,
-        )
-        out_path.write_bytes(raw)
-        if requested_size and effective_size != requested_size:
-            print(f"→ note:     served at {effective_size} "
-                  f"(requested {requested_size}, fell back)", file=sys.stderr)
+        model = args.model or _USER_DEFAULT_MODEL or NANOBANANA_DEFAULT_MODEL
+        if model in OPENAI_IMAGE_MODELS:
+            oai_size = _resolve_openai_image_size(args.ratio, args.size)
+            raw = openai_images_generate(
+                args.provider, prompt, model, oai_size, "high",
+                key, args.timeout,
+            )
+            out_path.write_bytes(raw)
+        else:
+            requested_size = args.size
+            if requested_size is None and model in NANOBANANA_PRO_MODELS:
+                requested_size = NANOBANANA_DEFAULT_IMAGE_SIZE
+            raw, effective_size = gemini_generate(
+                args.provider, prompt, model, args.ratio, requested_size,
+                ref_inputs, key, args.timeout,
+            )
+            out_path.write_bytes(raw)
+            if requested_size and effective_size != requested_size:
+                print(f"→ note:     served at {effective_size} "
+                      f"(requested {requested_size}, fell back)", file=sys.stderr)
     else:
         key = require_key("XAIS_API_KEY")
         ref_url = ref_urls[0] if ref_urls else None
+        model = args.model or _USER_DEFAULT_MODEL or XAIS_DEFAULT_MODEL
+        xais_size = None
+        xais_quality = None
+        xais_moderation = None
+        if "gpt-image-2" in model:
+            xais_size = args.size if (args.size and "x" in args.size) \
+                else XAIS_RATIO_TO_4K.get(args.ratio, "3840x2160")
+            xais_quality = "high"
+            xais_moderation = "low"
         url = xais_generate(
-            prompt, args.model or XAIS_DEFAULT_MODEL, args.ratio, ref_url, key, args.timeout,
+            prompt, model, args.ratio, ref_url, key, args.timeout,
+            size=xais_size, quality=xais_quality, moderation=xais_moderation,
         )
         download_to(url, out_path)
 

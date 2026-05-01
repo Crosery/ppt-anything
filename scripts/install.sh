@@ -112,6 +112,16 @@ for tmpl in "$PROJECT_ROOT"/defaults/providers/*.toml.example; do
         ok "provider: $base.toml 已生成 (api_key/base_url/docs_url 都留空, 待填)"
     fi
 done
+
+# config.toml: 用户默认配置 (provider / model / style / characters)
+config_dst="$GLOBAL_LIB/config.toml"
+config_src="$PROJECT_ROOT/defaults/config.toml.example"
+if [[ -e "$config_dst" ]]; then
+    ok "config.toml 已存在, 跳过 (用户配置不覆盖)"
+elif [[ -f "$config_src" ]]; then
+    cp "$config_src" "$config_dst"
+    ok "config.toml 已生成 (可修改默认 provider / model / style / characters)"
+fi
 echo ""
 
 # ---------- step 3: 依赖检查 ----------
@@ -183,16 +193,22 @@ info "     vim $GLOBAL_LIB/providers/google.toml"
 info "     # 去 https://aistudio.google.com/app/apikey 申请 Gemini API key"
 info "     # 推荐自己填; 让 AI agent 帮填属于风险操作 (key 会进 agent 上下文)"
 info ""
-info "b) 想接入第三方桥接 (任何 OpenAI-compatible 或 Gemini-shape 网关):"
-info "     方案 A - 自己加: cp google.toml google-bridge-x.toml, 改 base_url + auth_style + key"
+info "b) 自定义默认 provider / model / style / characters:"
+info "     vim $GLOBAL_LIB/config.toml"
+info "     # 改 provider 指向你自己的三方桥接, 改 model 指向你想用的模型"
+info "     # 跑 generate-image.py --list-models 查看当前 provider 支持哪些模型"
+info "     # 此文件不会被 install.sh 覆盖"
+info ""
+info "c) 想接入第三方桥接 (任何 OpenAI-compatible 或 Gemini-shape 网关):"
+info "     方案 A - 自己加: cp google.toml my-bridge.toml, 改 base_url + auth_style + key"
 info "     方案 B - 让 AI 加: 准备好 api_key + base_url + 文档链接 告诉 agent"
 info "             (有风险: agent 会经手你的 key 字符串)"
 info ""
-info "c) 在 AI CLI 里调用 skill:"
+info "d) 在 AI CLI 里调用 skill:"
 info "     Claude Code:  /ppt-anything 做一套 PPT 讲 <主题>"
 info "     其他 CLI:    见项目 AGENT.md"
 info ""
-info "d) 想再次更新 skill (比如本仓库有更新):"
+info "e) 想再次更新 skill (比如本���库有更新):"
 info "     重新跑 bash scripts/install.sh"
 info "     已存在的 skill 会被备份到 $SKILL_BACKUP_DIR/$SKILL_NAME.<时间戳>/, 然后覆盖"
 echo ""

@@ -21,11 +21,12 @@ This skill is **self-contained** — no external sub-skills required.
 
 | Path | Role |
 |---|---|
-| `~/.claude/skills/ppt-anything/tools/generate-image.py` | Image client. Supports `google` (default, official Gemini) / `nanobanana` (third-party Gemini bridge) / `seedream` / `xais`. |
+| `~/.claude/skills/ppt-anything/tools/generate-image.py` | Single image client. Default: Google Gemini official. Also supports Gemini-compatible bridges and OpenAI-compatible bridges. Run `--help` for provider options. |
+| `~/.claude/skills/ppt-anything/tools/batch-generate.py` | Batch parallel image client. Reads JSON manifest, all slides generated simultaneously, failed slides auto-retry. Used by fast mode. |
 | `~/.ppt-anything/providers/<name>.toml` | API credentials (`[auth].api_key` + `[auth].base_url` + `[auth].docs_url` + `[auth].auth_style`). **Source of truth for keys. The agent never reads this file directly — `generate-image.py` does.** |
 | `~/.ppt-anything/characters/<slug>/<slug>.{md,png}` | Character library. Skill reads from here at runtime. |
 | `~/.ppt-anything/styles/<style-name>/` | Style packs. Default `anime-chibi-default/` ships with the skill. |
-| `~/.ppt-anything/demo/<YYYY-MM-DD>-<slug>/` | Auto-archive of every generated deck (outline + slides + html + meta). |
+| `~/.ppt-anything/demo/<YYYY-MM-DD>-<HHMM>-<slug>/` | Auto-archive of every generated deck (outline + slides + html + meta). Includes time to prevent same-day collisions. |
 | `~/.claude/skills/ppt-anything/tools/build-html-ppt-external.py` | Default HTML packager (WebP external refs, ~3KB shell). |
 | `~/.claude/skills/ppt-anything/tools/build-html-ppt.py` | Single-file HTML packager (base64, only for WeChat/email use cases). |
 
@@ -68,7 +69,7 @@ The agent does NOT cat / Read any toml. `check-providers.py` does the reading; a
 
 If the user picks Path 2, the agent runs the connectivity self-test via `tools/register-provider.py` (which writes the toml AND verifies it round-trips one image before returning). See § Setup tool below.
 
-`generate-image.py` reads credentials from `~/.ppt-anything/providers/<name>.toml` itself (lookup table: `GOOGLE_API_KEY` → `google.toml`, `NANOBANANA_API_KEY` → `nanobanana.toml`, `ARK_API_KEY` → `seedream.toml`, `XAIS_API_KEY` → `xais.toml`). The agent does not need to involve itself — call the script and let it handle the secret.
+`generate-image.py` reads credentials from `~/.ppt-anything/providers/<name>.toml` itself. The agent does not need to involve itself — call the script and let it handle the secret.
 
 ### Setup tool — `register-provider.py`
 
@@ -122,7 +123,7 @@ If the user prefers Path 1 (Google official, fill the key themselves), the agent
 
    **Then** open the briefing with the user — **lead with what's actually in the library**, not a generic 5-question form. Example shape:
 
-   > "库里现在有：橙橙(暖橙水滴 · 冲劲) + 蓝蓝(深蓝水滴 · 稳健搭子)、anime-chibi-default 风格、google + nanobanana provider。
+   > "库里现在有：橙橙(暖橙水滴 · 冲劲) + 蓝蓝(深蓝水滴 · 稳健搭子)、anime-chibi-default 风格、[已配置的 provider 列表]。
    >
    > 你想做的是 [回放用户主题]。这俩水滴吉祥物天然配 [topic-fit 评估]。
    >
@@ -138,18 +139,16 @@ If the user prefers Path 1 (Google official, fill the key themselves), the agent
 
    Then once the user picks A/B/C, build the new pack (`manifest.md` + `style_guide.md` + `prompt_template.md` + `outline_template.md` mirroring `anime-chibi-default/`'s structure) and proceed. Building a new style pack is a normal workflow branch, not an exception path. **Anti-pattern**: responding with "我对你说的 X 风格有 2-3 种理解，是哪种？" — that puts the inferential burden back on the user; they already named the style, the missing piece is direction within it.
 
+   **Prompt research when building a new pack or using a new model:** Before writing `prompt_template.md`, WebSearch for high-quality prompt patterns specific to the target model (e.g. "gpt-image-2 best prompt structure", "gemini image generation prompt tips"). Different models respond to fundamentally different prompt shapes: diffusion models want tag-soup, instruction-tuned models want editorial briefs, some models need negative prompts, others ignore them. The built-in `anime-chibi-default/` ships with model-specific variants (`prompt_template.md` for Gemini/Seedream, `prompt_template_gpt_image.md` for gpt-image-2) precisely because one template does not fit all. When building a new style pack, research the model first, then write the template. When the user's config.toml points to a model the existing pack hasn't been tested with, search for that model's prompt best practices before generating.
+
 2. **Clarify what's still missing — including provider choice and generation mode.** After the library snapshot you know what's available, BUT YOU STILL ASK USER A FEW DECISIONS BEFORE TOUCHING `generate-image.py`:
 
    - **Topic-side**: register (serious/playful) if ambiguous from topic, slide count if user didn't say, any new-character/new-style needs that the snapshot revealed.
-   - **Provider choice — MANDATORY when more than one provider toml exists.** Do NOT silently default. If `ls ~/.ppt-anything/providers/` shows multiple `.toml` files (e.g. `google.toml` + `nanobanana.toml` + bridges), explicitly ask: `"providers/ 里有 [list]，这次用哪个？"`. Only auto-select when there's exactly ONE configured provider on disk. (Reason: the user pays per call, may want different model/quality, may have one provider keyed and one not — choosing for them costs them money on the wrong rail.)
+   - **Provider choice — MANDATORY when more than one provider toml exists.** Do NOT silently default. If `ls ~/.ppt-anything/providers/` shows multiple configured `.toml` files, explicitly ask: `"providers/ 里有 [list]，这次用哪个？"`. Only auto-select when there's exactly ONE configured provider on disk. (Reason: the user pays per call, may want different model/quality, may have one provider keyed and one not — choosing for them costs them money on the wrong rail.)
 
    - **Model + 分辨率默认 — 永远 provider 顶配, 不许"安全的中间值".** 用户为某个 provider 付了钱, 默认就要用满它能给的最强配置; "2K 对水彩够用" / "默认中间值更稳" 都是把 AI 偏好包装成默认, 实际是吃用户预算。各 provider 顶配 (查 `generate-image.py --help` 确认):
 
-     | Provider | 默认 model | 默认 `--size` | 备注 |
-     |---|---|---|---|
-     | `google` / `nanobanana` (Gemini-shape) | `gemini-3-pro-image-preview` | `4K` | `gemini-2.5-flash-image` 只用于注册校验或用户主动说"省钱/草稿" |
-     | `seedream` | `doubao-seedream-5-0-260128` (单模型) | `3k` | `2k` 是降配 |
-     | `xais` | **必须先跑** `generate-image.py --provider xais --list-models` 看动态 catalog, 取最新最强 | `--size` 对 xais 无效, 跳过 | xais 模型池会变, 不查就用旧默认 = 用户付了升级钱没拿到 |
+     原则：用 provider 范围内的顶配 model + 分辨率。具体参数见 `generate-image.py --help`。降配只在用户明示"省钱/草稿"时触发。
 
      告诉用户你的选择 + 留降配出口:
 
@@ -158,16 +157,14 @@ If the user prefers Path 1 (Google official, fill the key themselves), the agent
      **降配只在用户明示"省钱/草稿/不敏感"时才触发**, AI 不许替用户拿这个决定。
    - **Generation mode — MANDATORY ASK, no silent default.** This is a **质量 vs 速度** tradeoff (not just 串/并行的技术选择); both axes must be on the table for the user:
      - **高质量模式 (顺序生成 + AI 中途看图复盘)**: 一张生成完, AI 立刻 `Read` 那张图, 验证角色 IP 没崩 / style 一致 / 中文字串没乱码, 再开下一张。慢, 但每张都过审, 出问题早期就抓到。**适合**: 第一次跑某个 style / 用户对 IP 还原度高敏感 / 重要交付。
-     - **快速模式 (批量并发 + AI 不中途看图)**: 多张并发出货, AI 不审中间结果, 直接拿全部回包打包成 deck。**速度起飞但放弃中间复盘**, 如果某张崩了要等到末尾看 deck 才发现, 重生成的成本也是用户出。**适合**: style 和 character 已经在之前的 deck 里走通过 / 用户赶时间 / 草稿迭代版 / 用户明说"先批一版看看效果"。
-     - **并发上限**: 默认 3 (跨 provider 都安全的上限)。如果用户对自己 provider 的 RPM 有把握, 可以指定到 5 或 8 — 但**先问** "你 provider 的限频是多少 RPM?"。第三方 bridge **永远 ≤3**, 不接受用户上调。
-     - **风控提醒（用户选快速时, 必须复述）**: "批量会撞 provider 风控, 可能限频或临时封号; 失败也扣费, 由你承担。确认要快速模式 + N 并发?" 第一次 429 自动降回顺序模式, 把这点也提前讲明白。
+     - **快速模式 (全量并行 + 失败重试)**: 通过 `tools/batch-generate.py` 把全部 slide 同时发出, 总时间约等于一张图的时间。失败的 slide 自动重试（默认 2 轮）。AI 不审中间结果, 全部完成后一次打包。**适合**: style 和 character 已经走通过 / 用户赶时间 / 草稿迭代。
      - **铁律 — 不许默认**: 用户没明说模式 = **必须问**。"我 default 顺序" / "用户没说我猜要稳" / "outline 已经过了模式不重要" 全是违规借口 —— 这是一笔钱 + 一段时间的 tradeoff, 不该 AI 替用户拍。
 
    **提问示范 — provider + mode 一次问完, 用户只停一次:**
 
    > "默认 [provider X] + [N 张] + [基调]。还要你拍:
-   >  · provider 选 google / nanobanana / [其他]?
-   >  · 模式: **高质量 (顺序+我每张看图复盘, 慢但稳)** / **快速 (批量+不看图直接出货, 快但中间出问题要末尾才发现)**? 选快速的话默认 3 并发, 你 provider 限频高可以指定到 5/8。"
+   >  · provider 选 [列出 providers/ 里已配置的]?
+   >  · 模式: **高质量 (顺序+我每张看图复盘, 慢但稳)** / **快速 (全量并行+失败自动重试, 总时间约等于一张图)**?"
 3. **Resolve characters — and ALWAYS anchor with a real reference image.** Text description alone is never enough; the model will drift toward its training-data bias (e.g. a 2012 version of a character that's been redesigned in 2024). Every character used in the deck must end this step with BOTH (a) a profile file `~/.ppt-anything/characters/<slug>/<slug>.md` AND (b) a local reference image `~/.ppt-anything/characters/<slug>/<slug>.<ext>` that Claude has Read (vision input) at least once this session.
 
    Three branches:
@@ -189,20 +186,28 @@ If the user prefers Path 1 (Google official, fill the key themselves), the agent
    Use `~/.ppt-anything/styles/<active-style>/outline_template.md` as a thinking scaffold — articulate your design intent in your own words, not by filling blanks.
 
 5. **Gate: share the outline, wait for approval.** Write out your design intent for every slide (using `~/.ppt-anything/styles/<active-style>/outline_template.md` as a thinking scaffold) and show it to the user. Include enough so the user can tell: is each slide purposeful? Do layouts and poses vary? Does any slide feel over/under-filled? Do NOT call `generate.py` yet. Wait for explicit approval.
-6. **Generate slides — execute the mode the user picked in Step 2, not a default.** For each slide: fill every `<<SLOT>>` in `~/.ppt-anything/styles/<active-style>/prompt_template.md`, invoke `generate.py`.
+6. **Generate slides — execute the mode the user picked in Step 2, not a default.** Before filling prompts:
+   1. 先跑 `generate-image.py --list-models` 扫描当前 provider 实际可用的模型列表，确认要用的模型名在列表里。
+   2. 检查 style pack 里有没有该模型的专用 prompt template（如 `prompt_template_gpt_image.md`）。
+   3. 如果没有专用 template，WebSearch 该模型的 prompt 最佳实践，再基于搜索结果适配 prompt 写法。
+   Then fill every `<<SLOT>>`.
 
-   - **高质量模式 (顺序 + 看图)**: 一张生成完, 立即 `Read` 那张 PNG/WebP, 复盘 — 角色 IP 没崩? Style 一致? 中文字串没乱码? 任一不过, 跟用户讲 + 决定是重生成还是接受, 然后再开下一张。每张都是一个 RED→GREEN cycle, 不许跳过 Read。
-   - **快速模式 (批量 + 不看图)**: 用 N 路并发 (Step 2 拍的并发数, 默认 3, 第三方 bridge ≤3) 同时跑全部 slide。**AI 不中途 Read 中间产物**, 直接等所有回包后一次打包。第一次 429/throttle → 立即降回顺序模式, 把剩余未完成 slide 串行跑完, 并通知用户 "撞限频降回顺序"。
-   - **不许混淆**: 用户选高质量你私自批量 = 违规; 用户选快速你磨磨蹭蹭一张张看图 = 浪费用户时间也是违规。Mode 是用户的拍板, 不是 AI 的灵活区。
+   - **高质量模式 (顺序 + 看图)**: 逐张调用 `generate-image.py`。每张生成完立即 `Read` 那张 PNG/WebP, 复盘 — 角色 IP 没崩? Style 一致? 中文字串没乱码? 任一不过, 跟用户讲 + 决定是重生成还是接受, 然后再开下一张。
+   - **快速模式 (批量并行 + 失败重试)**: 把所有 slide 的 prompt 写成 JSON manifest, 一次调用 `tools/batch-generate.py`。脚本内部全部 slide 同时发出, 总时间约等于一张图的时间。失败的 slide 自动重试（默认 2 轮）。AI 不中途 Read 中间产物, 等全部完成后一次打包。
+
+     ```bash
+     tools/batch-generate.py manifest.json -o <slides_dir> --retries 2
+     ```
+
+     manifest.json 格式：每个 slide 一个对象, 包含 name / prompt / ref (角色 ref 图路径列表) / ratio / size 等字段。
+
+   - **不许混淆**: 用户选高质量你私自批量 = 违规; 用户选快速你一张张串行 = 浪费用户时间也是违规。Mode 是用户的拍板, 不是 AI 的灵活区。
 
    **`--ref` discipline (load-bearing for character fidelity):**
-   - EVERY slide passes the character reference image(s) `~/.ppt-anything/characters/<slug>/<slug>.<ext>` as `--ref`. These are the ground truth; they anchor signature details across the whole deck.
-   - From slide 2 onward, ALSO pass the previous slide's PNG as `--ref` for style continuity (watercolor tone, decoration style).
-   - Seedream supports multiple `--ref` flags — pass all relevant ones. Typical slide 2+ invocation: `--ref ~/.ppt-anything/characters/chengcheng/chengcheng.png --ref ~/.ppt-anything/characters/lanlan/lanlan.png --ref <previous_slide>.png`.
-   - Daisy-chaining ONLY the previous slide (without re-anchoring to the original character image) accumulates drift across 5–6 slides. Always re-anchor every slide.
-   - Resolution: 用 Step 2 拍的 provider 顶配 (Gemini-shape pro = `--size 4K`, seedream = `--size 3k`, xais 无 size 概念)。**不许**生图阶段私自降到 2K 理由是"水彩够用 / 省时"——降配只在 Step 2 用户明示触发。Chinese 文本多的 deck 顶配本就是必要项, 不是 nice-to-have。
-
-   **⚠️ Parallelization is gated on user-picked mode.** 高质量模式下永远不并发, 一张接一张; 快速模式下按用户拍的并发数并发 (默认 3, 第三方 bridge ≤3 硬上限)。Xais / Seedream / 第三方 bridge 都做 RPM 风控, 越界扣费且可能临时封号 — 所以**并发数永远不超过用户在 Step 2 明确确认过的值**, 不许 AI 自己加码。
+   - EVERY slide 的 manifest 条目必须包含角色 reference image(s) 在 `ref` 列表中。这些是 ground truth, 锚定角色特征。
+   - 快速模式下所有 slide 同时生成, 没有"上一张 slide"可引用。角色 ref 是唯一的一致性锚点。
+   - 高质量模式下从 slide 2 起, 额外传上一张 slide 的 PNG 作为 `--ref` 做风格延续。
+   - Resolution: 用 Step 2 拍的 provider 顶配（具体参数见 `generate-image.py --help`）。不许生图阶段私自降配——降配只在 Step 2 用户明示触发。
 7. **Package & deliver.**
 
    **Default — lightweight external-reference HTML (recommended for almost every deck):**
@@ -241,8 +246,8 @@ If the user prefers Path 1 (Google official, fill the key themselves), the agent
 - [ ] **T4**: EVERY `generate.py` call passes the character reference image(s) as `--ref`; slides 2+ ALSO pass the previous slide as `--ref`. No slide relies on daisy-chained previous slides alone.
 - [ ] **T5**: Each slide uses a DIFFERENT layout from the previous slide (no 5× identical ribbon-banner template)
 - [ ] **T6**: Each slide uses a DIFFERENT character pose from the previous slide
-- [ ] **T7**: 生成模式被**显式问过** — 高质量(顺序+每张看图复盘) vs 快速(批量+不看图直接出货)。没有静默默认。并发上限默认 3, 用户确认 provider RPM 后可放宽到 5-8, 第三方 bridge 永远 ≤3。第一次 429 自动降回顺序。高质量模式下每张生成完 AI 都 `Read` 过该图; 快速模式下不中途 Read。
-- [ ] **T11**: provider 选定后, model + 分辨率都用了 provider 范围内的**顶配** — Gemini-shape (google/nanobanana) = `gemini-3-pro-image-preview` + `--size 4K`; seedream = `--size 3k`; xais 跑过 `--list-models` 后取最新最强。没有静默退到 `2K` / `gemini-2.5-flash-image` / xais 旧默认。降配只在用户明示"省钱/草稿/不敏感"时触发。
+- [ ] **T7**: 生成模式被显式问过 — 高质量(顺序+每张看图复盘) vs 快速(batch-generate.py 全量并行+失败自动重试)。没有静默默认。高质量模式下每张生成完 AI 都 Read 过该图; 快速模式下通过 batch-generate.py 全部同时发出, 失败自动重试, 不中途 Read。
+- [ ] **T11**: provider 选定后, model + 分辨率都用了 provider 范围内的顶配。具体参数参考 `generate-image.py --help`。降配只在用户明示"省钱/草稿/不敏感"时触发。
 - [ ] **T8**: Every element on every slide earns its place — no filler character / decoration / sentence added to meet a quota. If asked "why is this here?" you can answer with a story reason, not a rule reason.
 - [ ] **T9**: Design intent was articulated per slide and shown to the user BEFORE any generation — covering beat, layout choice, pose choice, copy, decorations (with reasoning)
 - [ ] **T10 (content-first sanity check)**: On each finished slide, the viewer's eye lands on the title/copy first, then the character, then the decorations. If a character or decoration is stealing the scene, shrink or reposition — characters serve the content, not the other way around.
@@ -276,10 +281,10 @@ See `~/.ppt-anything/characters/README.md` for profile schema, the mandatory ref
 |---|---|---|
 | Generating images before showing outline | Burns money on wrong direction | Gate T3 is mandatory |
 | Forgetting `--ref` from slide 2 onward | Characters drift between slides | Check Gate T4 before each call |
-| Auto-running parallel `generate.py` calls without asking the user first | API risk-control throttles or bans + spends user money on the wrong rail | Default sequential; batch only after asking + warning + re-confirm; cap at 3 concurrent; fall back to sequential on first 429 (T7) |
+| 用户选快速模式但 agent 逐张串行调用 generate-image.py | 浪费用户时间, 快速模式的意义就是并行 | 快速模式必须用 batch-generate.py 全量并行, 失败自动重试 (T7) |
 | 没问用户模式 (高质量/快速) 直接开始生成 — 即使是"安全的"顺序也违规 | 把 钱 + 时间 的 tradeoff 从用户手里拿走。用户想快你给慢, 用户想稳你给快批崩了。"顺序很安全所以不用问"是最危险的借口, 因为它把 AI 的偏好包装成默认 | T7 + Step 2 *Generation mode*: 模式问询是 slide 1 之前的硬门, 必须问。"我 default 顺序" / "用户没说我猜稳" / "outline 已经过了" 全部不算。问的时候必须把"高质量=顺序+我看图"和"快速=批量+不看图"都摆上, 让用户拍 |
 | 用户说一个 style 方向 (科技风/复古风/商务风/赛博朋克), 库里没有该 pack, AI 回 "我对你的话有 2/3 种理解, 是哪个?" | 把推断成本甩回给用户 — 用户已经说清楚他要那个 style 了。库 miss = 该 BUILD 新 pack 的信号, 不是该让用户解释一遍他刚说过的话。"我有 N 种理解" 框架在装认真, 实际是把决策推给用户 | Step 1 *Style-library miss judgment*: 直接说 "库里没这个 style, 我去建新 pack — 在这个 style 内部你拍方向 A/B/C?" 框架是 "我在建, 给我方向", 不是 "我搞不懂你说啥"。建 pack (manifest+style_guide+prompt_template+outline_template) 是正常分支不是异常 |
-| 注册 / 选定 provider 后用 generate-image.py 的硬编码默认 (`--size 2K` / `gemini-2.5-flash-image` / xais 旧 model), 没用 provider 顶配 | 用户为顶配 provider 付了钱却只拿中等画质。"水彩 2K 够用" / "我不知道 max 是多少所以 2K 安全" / "flash 便宜先试试" 都是把 AI 偏好包装成谨慎默认, 实际吃用户预算 | T11 + Step 2 *Model + 分辨率默认*: Gemini-shape → `gemini-3-pro-image-preview` + `--size 4K`; seedream → `--size 3k`; xais → 必须先 `--list-models` 看动态 catalog 再取最新最强。降配只在用户明示触发 |
+| 注册 / 选定 provider 后用 generate-image.py 的硬编码默认而不是 provider 顶配 | 用户为顶配 provider 付了钱却只拿中等画质。"水彩 2K 够用" / "我不知道 max 是多少所以 2K 安全" / "flash 便宜先试试" 都是把 AI 偏好包装成谨慎默认, 实际吃用户预算 | T11 + Step 2: 跑 `generate-image.py --help` 确认 provider 顶配参数, 用顶配。降配只在用户明示触发 |
 | Auto-picking a provider when multiple toml exist | User pays for the wrong rail / wrong quality / wrong key | If `ls ~/.ppt-anything/providers/*.toml` shows >1 entry, ASK the user which to use — do not silently default |
 | Same layout on every slide | Monotonous deck, reader disengages | Vary layouts per `~/.ppt-anything/styles/<active-style>/style_guide.md` § Layout variation (T5) |
 | Same character pose every slide (e.g. "holding notebook") | Dead deck, no motion | Pick fresh pose from vocabulary per slide (T6) |

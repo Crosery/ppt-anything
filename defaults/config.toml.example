@@ -1,0 +1,19 @@
+# ~/.ppt-anything/config.toml
+# 用户默认配置。install.sh 永远不覆盖此文件。
+# 所有字段可选，留空或删掉则用脚本内置默认值。
+# 修改后立即生效，不需要重启。
+
+[defaults]
+# 默认 provider，对应 providers/ 目录下的 toml 文件名（不含 .toml 后缀）
+# 跑 ls ~/.ppt-anything/providers/ 查看已有的 provider
+provider = "google"
+
+# 默认模型。留空则用 provider 内置默认。
+# 跑 generate-image.py --list-models 查看当前 provider 支持的模型
+model = ""
+
+# 默认风格包，对应 styles/ 目录下的文件夹名
+style = "anime-chibi-default"
+
+# 默认角色 slug 列表（逗号分隔），对应 characters/ 目录下的文件夹名
+characters = "chengcheng, lanlan"
